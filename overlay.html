@@ -25,7 +25,7 @@
         right: 20px;
         display: flex;
         align-items: center;
-        gap: 12px; /* 간격 조정 */
+        gap: 12px;
         background: rgba(0, 0, 0, 0.7);
         backdrop-filter: blur(8px);
         padding: 8px 18px;
@@ -38,7 +38,7 @@
 
     /* 수익 항목 공통 스타일 */
     #overlay span {
-        margin: 0; /* 기존 margin 제거 */
+        margin: 0;
         display: inline-flex;
         align-items: center;
         gap: 4px;
@@ -65,7 +65,7 @@
         text-shadow: 0 0 5px rgba(255, 152, 0, 0.3);
     }
 
-    /* 툴팁 스타일 (선택사항) */
+    /* 툴팁 스타일 */
     [data-tooltip] {
         position: relative;
         cursor: help;
@@ -120,18 +120,18 @@ try {
 }
 
 /**
- * 숫자 포맷팅 (천 단위 콤마 + '원' 추가)
+ * 숫자 포맷팅 (천 단위 콤마만 추가, '원' 제거)
  */
 function formatNumber(value) {
-    // 값이 없으면 '0원' 반환
-    if (!value && value !== 0) return '0원';
+    // 값이 없으면 '0' 반환
+    if (!value && value !== 0) return '0';
     
     // 문자열에서 숫자만 추출
     const num = parseInt(value.toString().replace(/[^0-9]/g, ''));
-    if (isNaN(num)) return value + '원';
+    if (isNaN(num)) return value; // 숫자가 아니면 원본 반환
     
-    // 천 단위 콤마 추가
-    return num.toLocaleString() + '원';
+    // 천 단위 콤마만 추가 (원 제거)
+    return num.toLocaleString();
 }
 
 // Firebase 데이터 수신
@@ -143,7 +143,7 @@ if (db) {
             return;
         }
 
-        // 각 요소 업데이트
+        // 각 요소 업데이트 ('원' 제거됨)
         document.getElementById('dailyText').innerHTML = 
             `💰 일 수익: ${formatNumber(data.daily)}`;
         document.getElementById('weeklyText').innerHTML = 
@@ -156,13 +156,13 @@ if (db) {
         console.error('❌ Firebase 데이터 로드 실패:', error);
     });
 } else {
-    // Firebase 연결 실패시 더미 데이터 표시
-    document.getElementById('dailyText').innerHTML = '💰 일 수익: 0원';
-    document.getElementById('weeklyText').innerHTML = '📊 월 수익: 0원';
-    document.getElementById('monthlyText').innerHTML = '📈 년 수익: 0원';
+    // Firebase 연결 실패시 더미 데이터 표시 ('원' 제거)
+    document.getElementById('dailyText').innerHTML = '💰 일 수익: 0';
+    document.getElementById('weeklyText').innerHTML = '📊 월 수익: 0';
+    document.getElementById('monthlyText').innerHTML = '📈 년 수익: 0';
 }
 
-console.log('✅ 수익 오버레이 로드 완료');
+console.log('✅ 수익 오버레이 로드 완료 (원 제거)');
 </script>
 
 </body>
