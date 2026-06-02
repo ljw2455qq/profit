@@ -9,12 +9,14 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
+    /* 프랭크 스타일 방송용 굵은 글씨체 */
+    @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700;900&display=swap');
+
     body {
         margin: 0;
         padding: 0;
         background: transparent;
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 
-                     'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+        font-family: 'Black Han Sans', 'Noto Sans KR', sans-serif;
         color: white;
     }
 
@@ -46,23 +48,23 @@
 
     /* 일 수익 - 초록색 */
     #dailyText {
-        font-weight: 600;
-        color: #4CAF50;
-        text-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+        font-weight: 900;
+        color: #ffffff;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.75);
     }
 
     /* 월 수익 - 파란색 */
     #weeklyText {
-        font-weight: 600;
-        color: #2196F3;
-        text-shadow: 0 0 5px rgba(33, 150, 243, 0.3);
+        font-weight: 900;
+        color: #ffffff;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.75);
     }
 
     /* 년 수익 - 주황색 */
     #monthlyText {
-        font-weight: 600;
-        color: #FF9800;
-        text-shadow: 0 0 5px rgba(255, 152, 0, 0.3);
+        font-weight: 900;
+        color: #ffffff;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.75);
     }
 
     /* 툴팁 스타일 */
