@@ -14,6 +14,8 @@
         input { padding: 10px; margin: 6px; font-size: 18px; width: 200px; text-align:right; border-radius:6px; border:none; }
         button { padding: 12px 26px; font-size: 17px; background: #4CAF50; color: white; border: none; cursor: pointer; border-radius:6px; }
         button:hover { background: #45a049; }
+        button.reset { background:#c0392b; margin:4px; font-size:15px; padding:10px 16px; }
+        button.reset:hover { background:#a93226; }
         .row { margin:8px 0; }
         .muted { color:#888; font-size:13px; margin-top:6px; line-height:1.5; }
         .live { font-size: 15px; color:#bbb; }
@@ -27,11 +29,25 @@
         <div class="row"><label>일수익</label><input id="daily" type="text" inputmode="numeric" placeholder="오늘 수익"></div>
         <div class="row"><label>월수익</label><input id="weekly" type="text" inputmode="numeric" placeholder="이번 달 합계"></div>
         <div class="row"><label>연수익</label><input id="monthly" type="text" inputmode="numeric" placeholder="올해 합계"></div>
+        <div class="row"><label>일 목표</label><input id="dailyGoal" type="text" inputmode="numeric" placeholder="일 목표 금액(선택)"></div>
+        <div class="row"><label>월 목표</label><input id="monthGoal" type="text" inputmode="numeric" placeholder="월 목표 금액(선택)"></div>
+        <div class="row"><label>연 목표</label><input id="yearGoal" type="text" inputmode="numeric" placeholder="연 목표 금액(선택)"></div>
         <div class="row"><button onclick="saveData()">저장</button></div>
         <div class="muted">
             • 평소엔 <b>일수익</b>만 입력하면 됩니다. 하루가 지나면 자동으로 월·연 합계에 더해져요.<br>
-            • 월수익·연수익을 직접 고쳐서 저장하면 그 값이 적용되고, 그 값부터 다시 자동 합산됩니다.
+            • 월수익·연수익을 직접 고쳐서 저장하면 그 값이 적용되고, 그 값부터 다시 자동 합산됩니다.<br>
+            • <b>일·월·연 목표</b>를 입력하면 오버레이에 달성률(%)이 표시됩니다. (비워두면 표시 안 함)
         </div>
+    </div>
+
+    <div class="card">
+        <div class="muted" style="margin-bottom:8px">⚠️ 초기화 (각 항목 0으로)</div>
+        <div class="row">
+            <button class="reset" onclick="resetDaily()">일수익 초기화</button>
+            <button class="reset" onclick="resetMonth()">월수익 초기화</button>
+            <button class="reset" onclick="resetYear()">연수익 초기화</button>
+        </div>
+        <div class="muted" style="margin-top:6px">• 월수익 초기화 시 오늘 수익도 함께 0이 됩니다.<br>• 연수익 초기화 시 일·월·연 수익이 모두 0이 됩니다.</div>
     </div>
 
     <div class="card live">
@@ -95,23 +111,48 @@
         fill('daily', toNum(data.daily));
         fill('weekly', toNum(data.weekly));
         fill('monthly', toNum(data.monthly));
+        fillGoal('dailyGoal', toNum(data.dailyGoal));
+        fillGoal('monthGoal', toNum(data.monthGoal));
+        fillGoal('yearGoal', toNum(data.yearGoal));
         firstRender=false;
     }
     function fill(id, val){
         var el=document.getElementById(id);
         if(document.activeElement!==el) el.value = val;
     }
+    function fillGoal(id, val){
+        var el=document.getElementById(id);
+        if(document.activeElement!==el) el.value = (val>0 ? val : '');
+    }
+    function resetDaily(){
+        if(!confirm('일수익을 0으로 초기화할까요?')) return;
+        db.ref('overlayData').transaction(function(data){ if(!data) return data; data.today=0; return recompute(data); }, function(err){ alert(err?'초기화 실패: '+err:'일수익 초기화 완료'); });
+    }
+    function resetMonth(){
+        if(!confirm('이번 달 수익(월수익)을 0으로 초기화할까요?\n오늘 수익도 함께 0이 됩니다.')) return;
+        db.ref('overlayData').transaction(function(data){ if(!data) return data; data.today=0; data.monthBase=0; return recompute(data); }, function(err){ alert(err?'초기화 실패: '+err:'월수익 초기화 완료'); });
+    }
+    function resetYear(){
+        if(!confirm('올해 수익(연수익)을 0으로 초기화할까요?\n일·월·연 수익이 모두 0이 됩니다.')) return;
+        db.ref('overlayData').transaction(function(data){ if(!data) return data; data.today=0; data.monthBase=0; data.yearBase=0; return recompute(data); }, function(err){ alert(err?'초기화 실패: '+err:'연수익 초기화 완료'); });
+    }
 
     function saveData(){
         var dailyV=toNum(document.getElementById('daily').value);
         var weeklyV=toNum(document.getElementById('weekly').value);   // 월수익(표시 합계)
         var monthlyV=toNum(document.getElementById('monthly').value); // 연수익(표시 합계)
+        var dailyGoalV=toNum(document.getElementById('dailyGoal').value);
+        var monthGoalV=toNum(document.getElementById('monthGoal').value);
+        var yearGoalV=toNum(document.getElementById('yearGoal').value);
         db.ref('overlayData').transaction(function(data){
             if(!data){ var c=dateParts(); data={ today:0, monthBase:0, yearBase:0, lastDay:c.day, lastMonth:c.month, lastYear:c.year }; }
             data.today=dailyV;
             // 월·연은 '표시 합계'를 입력받아 누적값(base)으로 역산 (base = 합계 - 오늘)
             data.monthBase=weeklyV-dailyV;
             data.yearBase=monthlyV-dailyV;
+            data.dailyGoal=dailyGoalV;
+            data.monthGoal=monthGoalV;
+            data.yearGoal=yearGoalV;
             return recompute(data);
         }, function(err){
             if(err){ alert('저장 실패: '+err); } else { alert('저장 완료!'); }
