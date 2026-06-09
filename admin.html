@@ -24,6 +24,8 @@
         .muted { color:#888; font-size:13px; margin-top:6px; line-height:1.5; }
         .live { font-size: 15px; color:#bbb; }
         .live b { color:#fff; font-size:18px; }
+        .goal-rate { margin-top:10px; color:#ddd; font-size:14px; line-height:1.7; }
+        .goal-rate b { color:#ffd166; font-size:16px; }
     </style>
 </head>
 <body>
@@ -59,12 +61,38 @@
 
     <div class="card live">
         <div class="row">현재 표시 — 일: <b id="vDaily">0원</b> / 월: <b id="vWeekly">0원</b> / 연: <b id="vMonthly">0원</b></div>
+        <div class="goal-rate" id="goalRate">목표 달성률 — 일: <b id="rDaily">-</b> / 월: <b id="rMonth">-</b> / 연: <b id="rYear">-</b></div>
         <div class="muted" id="lastInfo"></div>
     </div>
 
     <script>
     function toNum(v){ if(v===null||v===undefined) return 0; var n=parseInt(String(v).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
-    function won(n){ return (toNum(n)).toLocaleString()+'원'; }
+    function comma(n){ return toNum(n).toLocaleString(); }
+    function won(n){ return comma(n)+'원'; }
+    function formatMoneyInput(el){
+        if(!el) return;
+        var raw=String(el.value||'');
+        if(raw.trim()===''){ el.value=''; return; }
+        el.value=comma(raw);
+    }
+    function bindMoneyInputs(){
+        ['daily','weekly','monthly','dailyGoal','monthGoal','yearGoal'].forEach(function(id){
+            var el=document.getElementById(id);
+            if(!el) return;
+            el.addEventListener('input', function(){ formatMoneyInput(el); });
+            el.addEventListener('blur', function(){ formatMoneyInput(el); });
+        });
+    }
+    function rateText(value, goal){
+        value=toNum(value); goal=toNum(goal);
+        if(goal<=0) return '-';
+        return Math.round((value/goal)*100)+'%';
+    }
+    function renderGoalRate(data){
+        document.getElementById('rDaily').innerText=rateText(data.daily, data.dailyGoal);
+        document.getElementById('rMonth').innerText=rateText(data.weekly, data.monthGoal);
+        document.getElementById('rYear').innerText=rateText(data.monthly, data.yearGoal);
+    }
     function dateParts(){
         var n=new Date();
         var y=n.getFullYear();
@@ -146,6 +174,7 @@
         document.getElementById('vDaily').innerText=won(data.daily);
         document.getElementById('vWeekly').innerText=won(data.weekly);
         document.getElementById('vMonthly').innerText=won(data.monthly);
+        renderGoalRate(data);
         document.getElementById('lastInfo').innerText='마지막 기준 날짜: '+(data.lastDay||'-');
         // 입력하는 중이 아닌 칸은 현재값으로 채워줌
         fill('daily', toNum(data.daily));
@@ -158,11 +187,11 @@
     }
     function fill(id, val){
         var el=document.getElementById(id);
-        if(document.activeElement!==el) el.value = val;
+        if(document.activeElement!==el) el.value = comma(val);
     }
     function fillGoal(id, val){
         var el=document.getElementById(id);
-        if(document.activeElement!==el) el.value = (val>0 ? val : '');
+        if(document.activeElement!==el) el.value = (val>0 ? comma(val) : '');
     }
     function closeDay(){
         if(!confirm('하루 마무리를 진행할까요?\n오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.')) return;
@@ -212,6 +241,9 @@
             return recompute(data);
         }, '저장 완료!');
     }
+
+    // 숫자 입력창은 입력 중에도 자동으로 콤마를 표시
+    bindMoneyInputs();
 
     // 페이지 열릴 때 날짜 롤오버 점검 후 실시간 표시
     rollover(function(){
