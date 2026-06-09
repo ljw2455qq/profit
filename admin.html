@@ -248,6 +248,16 @@
         if(el) el.value='';
     }
 
+    function confirmResetAction(title, detail){
+        var input=prompt(title+'\n'+detail+'\n\n진행하려면 아래에 "초기화"를 입력하세요.');
+        if(input===null) return false;
+        if(String(input).trim()!=='초기화'){
+            showNotice('초기화가 취소되었습니다. 정확히 "초기화"를 입력해야 합니다.', 'error');
+            return false;
+        }
+        return true;
+    }
+
     function closeDay(){
         if(!confirm('하루 마무리를 진행할까요?\n오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.')) return;
         var cur=dateParts();
@@ -265,15 +275,15 @@
     }
 
     function resetDaily(){
-        if(!confirm('일수익을 0으로 초기화할까요?')) return;
+        if(!confirmResetAction('일수익 초기화', '오늘 일수익만 0원으로 초기화됩니다.')) return;
         backupAndTransaction('일수익 초기화', function(data){ if(!data) return data; data.today=0; return recompute(data); }, '일수익 초기화 완료');
     }
     function resetMonth(){
-        if(!confirm('이번 달 수익(월수익)을 0으로 초기화할까요?\n오늘 수익도 함께 0이 됩니다.')) return;
+        if(!confirmResetAction('월수익 초기화', '이번 달 수익과 오늘 일수익이 모두 0원으로 초기화됩니다.')) return;
         backupAndTransaction('월수익 초기화', function(data){ if(!data) return data; data.today=0; data.monthBase=0; return recompute(data); }, '월수익 초기화 완료');
     }
     function resetYear(){
-        if(!confirm('올해 수익(연수익)을 0으로 초기화할까요?\n일·월·연 수익이 모두 0이 됩니다.')) return;
+        if(!confirmResetAction('연수익 초기화', '일수익, 월수익, 연수익이 모두 0원으로 초기화됩니다.')) return;
         backupAndTransaction('연수익 초기화', function(data){ if(!data) return data; data.today=0; data.monthBase=0; data.yearBase=0; return recompute(data); }, '연수익 초기화 완료');
     }
 
