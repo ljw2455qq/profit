@@ -18,6 +18,8 @@
         button.reset:hover { background:#a93226; }
         button.dayend { background:#f39c12; color:#211400; font-weight:700; margin-top:4px; }
         button.dayend:hover { background:#e67e22; }
+        button.restore { background:#2980b9; margin:4px; font-size:15px; padding:10px 16px; }
+        button.restore:hover { background:#2471a3; }
         .row { margin:8px 0; }
         .muted { color:#888; font-size:13px; margin-top:6px; line-height:1.5; }
         .live { font-size: 15px; color:#bbb; }
@@ -50,8 +52,9 @@
             <button class="reset" onclick="resetDaily()">일수익 초기화</button>
             <button class="reset" onclick="resetMonth()">월수익 초기화</button>
             <button class="reset" onclick="resetYear()">연수익 초기화</button>
+            <button class="restore" onclick="restoreBackup()">직전 값 복구</button>
         </div>
-        <div class="muted" style="margin-top:6px">• 월수익 초기화 시 오늘 수익도 함께 0이 됩니다.<br>• 연수익 초기화 시 일·월·연 수익이 모두 0이 됩니다.</div>
+        <div class="muted" style="margin-top:6px">• 저장, 하루 마무리, 초기화 전에는 직전 값이 자동 백업됩니다.<br>• 월수익 초기화 시 오늘 수익도 함께 0이 됩니다.<br>• 연수익 초기화 시 일·월·연 수익이 모두 0이 됩니다.</div>
     </div>
 
     <div class="card live">
@@ -104,6 +107,39 @@
         }, function(err){ if(cb) cb(); });
     }
 
+    function backupAndTransaction(actionName, updater, successMsg){
+        db.ref('overlayData').once('value').then(function(snap){
+            var backup=snap.val()||{};
+            backup.backupAt=new Date().toISOString();
+            backup.backupAction=actionName;
+            return db.ref('overlayDataBackup').set(backup);
+        }).then(function(){
+            db.ref('overlayData').transaction(updater, function(err){
+                alert(err ? actionName+' 실패: '+err : successMsg);
+            });
+        }).catch(function(err){
+            alert('백업 실패: '+err);
+        });
+    }
+
+    function restoreBackup(){
+        db.ref('overlayDataBackup').once('value').then(function(snap){
+            var backup=snap.val();
+            if(!backup){ alert('복구할 백업이 없습니다.'); return; }
+            var backupAt=backup.backupAt||'-';
+            var backupAction=backup.backupAction||'이전 작업';
+            if(!confirm('직전 값을 복구할까요?\n백업 시점: '+backupAt+'\n백업 작업: '+backupAction)) return;
+            delete backup.backupAt;
+            delete backup.backupAction;
+            backup=recompute(backup);
+            db.ref('overlayData').set(backup, function(err){
+                alert(err?'복구 실패: '+err:'직전 값 복구 완료');
+            });
+        }).catch(function(err){
+            alert('백업 불러오기 실패: '+err);
+        });
+    }
+
     var firstRender=true;
     function render(data){
         data=data||{};
@@ -131,7 +167,7 @@
     function closeDay(){
         if(!confirm('하루 마무리를 진행할까요?\n오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.')) return;
         var cur=dateParts();
-        db.ref('overlayData').transaction(function(data){
+        backupAndTransaction('하루 마무리', function(data){
             if(!data) data={ today:0, monthBase:0, yearBase:0 };
             var today=toNum(data.today);
             data.monthBase=toNum(data.monthBase)+today;
@@ -141,20 +177,20 @@
             data.lastMonth=cur.month;
             data.lastYear=cur.year;
             return recompute(data);
-        }, function(err){ alert(err?'하루 마무리 실패: '+err:'하루 마무리 완료'); });
+        }, '하루 마무리 완료');
     }
 
     function resetDaily(){
         if(!confirm('일수익을 0으로 초기화할까요?')) return;
-        db.ref('overlayData').transaction(function(data){ if(!data) return data; data.today=0; return recompute(data); }, function(err){ alert(err?'초기화 실패: '+err:'일수익 초기화 완료'); });
+        backupAndTransaction('일수익 초기화', function(data){ if(!data) return data; data.today=0; return recompute(data); }, '일수익 초기화 완료');
     }
     function resetMonth(){
         if(!confirm('이번 달 수익(월수익)을 0으로 초기화할까요?\n오늘 수익도 함께 0이 됩니다.')) return;
-        db.ref('overlayData').transaction(function(data){ if(!data) return data; data.today=0; data.monthBase=0; return recompute(data); }, function(err){ alert(err?'초기화 실패: '+err:'월수익 초기화 완료'); });
+        backupAndTransaction('월수익 초기화', function(data){ if(!data) return data; data.today=0; data.monthBase=0; return recompute(data); }, '월수익 초기화 완료');
     }
     function resetYear(){
         if(!confirm('올해 수익(연수익)을 0으로 초기화할까요?\n일·월·연 수익이 모두 0이 됩니다.')) return;
-        db.ref('overlayData').transaction(function(data){ if(!data) return data; data.today=0; data.monthBase=0; data.yearBase=0; return recompute(data); }, function(err){ alert(err?'초기화 실패: '+err:'연수익 초기화 완료'); });
+        backupAndTransaction('연수익 초기화', function(data){ if(!data) return data; data.today=0; data.monthBase=0; data.yearBase=0; return recompute(data); }, '연수익 초기화 완료');
     }
 
     function saveData(){
@@ -164,7 +200,7 @@
         var dailyGoalV=toNum(document.getElementById('dailyGoal').value);
         var monthGoalV=toNum(document.getElementById('monthGoal').value);
         var yearGoalV=toNum(document.getElementById('yearGoal').value);
-        db.ref('overlayData').transaction(function(data){
+        backupAndTransaction('저장', function(data){
             if(!data){ var c=dateParts(); data={ today:0, monthBase:0, yearBase:0, lastDay:c.day, lastMonth:c.month, lastYear:c.year }; }
             data.today=dailyV;
             // 월·연은 '표시 합계'를 입력받아 누적값(base)으로 역산 (base = 합계 - 오늘)
@@ -174,9 +210,7 @@
             data.monthGoal=monthGoalV;
             data.yearGoal=yearGoalV;
             return recompute(data);
-        }, function(err){
-            if(err){ alert('저장 실패: '+err); } else { alert('저장 완료!'); }
-        });
+        }, '저장 완료!');
     }
 
     // 페이지 열릴 때 날짜 롤오버 점검 후 실시간 표시
