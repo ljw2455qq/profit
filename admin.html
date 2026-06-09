@@ -26,10 +26,17 @@
         .live b { color:#fff; font-size:18px; }
         .goal-rate { margin-top:10px; color:#ddd; font-size:14px; line-height:1.7; }
         .goal-rate b { color:#ffd166; font-size:16px; }
+        #notice { display:none; max-width:440px; margin:10px auto; padding:12px 14px; border-radius:8px; font-size:15px; font-weight:700; }
+        #notice.success { display:block; background:#1f7a3a; color:#fff; }
+        #notice.error { display:block; background:#b33939; color:#fff; }
+        .quick-add { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:8px; }
+        .quick-add button { background:#34495e; padding:10px 14px; font-size:15px; min-width:92px; }
+        .quick-add button:hover { background:#2c3e50; }
     </style>
 </head>
 <body>
     <h1>OBS 오버레이 수익 입력</h1>
+    <div id="notice"></div>
 
     <div class="card">
         <div class="row"><label>일수익</label><input id="daily" type="text" inputmode="numeric" placeholder="오늘 수익"></div>
@@ -46,6 +53,18 @@
             • 월수익·연수익을 직접 고쳐서 저장하면 그 값이 적용되고, 그 값부터 다시 자동 합산됩니다.<br>
             • <b>일·월·연 목표</b>를 입력하면 오버레이에 달성률(%)이 표시됩니다. (비워두면 표시 안 함)
         </div>
+    </div>
+
+    <div class="card">
+        <div class="muted" style="margin-bottom:8px">⚡ 빠른 수익 추가</div>
+        <div class="quick-add">
+            <button onclick="addIncome(1000)">+1,000</button>
+            <button onclick="addIncome(5000)">+5,000</button>
+            <button onclick="addIncome(10000)">+10,000</button>
+            <button onclick="addIncome(50000)">+50,000</button>
+            <button onclick="addIncome(100000)">+100,000</button>
+        </div>
+        <div class="muted" style="margin-top:6px">• 버튼을 누르면 일수익에 바로 더해지고 자동 백업됩니다.</div>
     </div>
 
     <div class="card">
@@ -66,6 +85,16 @@
     </div>
 
     <script>
+    var noticeTimer=null;
+    function showNotice(message, type){
+        var el=document.getElementById('notice');
+        if(!el) return;
+        el.innerText=message;
+        el.className=(type==='error'?'error':'success');
+        if(noticeTimer) clearTimeout(noticeTimer);
+        noticeTimer=setTimeout(function(){ el.style.display='none'; el.className=''; }, 3000);
+        el.style.display='block';
+    }
     function toNum(v){ if(v===null||v===undefined) return 0; var n=parseInt(String(v).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
     function comma(n){ return toNum(n).toLocaleString(); }
     function won(n){ return comma(n)+'원'; }
@@ -143,17 +172,17 @@
             return db.ref('overlayDataBackup').set(backup);
         }).then(function(){
             db.ref('overlayData').transaction(updater, function(err){
-                alert(err ? actionName+' 실패: '+err : successMsg);
+                showNotice(err ? actionName+' 실패: '+err : successMsg, err ? 'error' : 'success');
             });
         }).catch(function(err){
-            alert('백업 실패: '+err);
+            showNotice('백업 실패: '+err, 'error');
         });
     }
 
     function restoreBackup(){
         db.ref('overlayDataBackup').once('value').then(function(snap){
             var backup=snap.val();
-            if(!backup){ alert('복구할 백업이 없습니다.'); return; }
+            if(!backup){ showNotice('복구할 백업이 없습니다.', 'error'); return; }
             var backupAt=backup.backupAt||'-';
             var backupAction=backup.backupAction||'이전 작업';
             if(!confirm('직전 값을 복구할까요?\n백업 시점: '+backupAt+'\n백업 작업: '+backupAction)) return;
@@ -161,10 +190,10 @@
             delete backup.backupAction;
             backup=recompute(backup);
             db.ref('overlayData').set(backup, function(err){
-                alert(err?'복구 실패: '+err:'직전 값 복구 완료');
+                showNotice(err?'복구 실패: '+err:'직전 값 복구 완료', err?'error':'success');
             });
         }).catch(function(err){
-            alert('백업 불러오기 실패: '+err);
+            showNotice('백업 불러오기 실패: '+err, 'error');
         });
     }
 
@@ -193,6 +222,16 @@
         var el=document.getElementById(id);
         if(document.activeElement!==el) el.value = (val>0 ? comma(val) : '');
     }
+    function addIncome(amount){
+        amount=toNum(amount);
+        if(amount<=0) return;
+        backupAndTransaction('빠른 수익 추가', function(data){
+            if(!data){ var c=dateParts(); data={ today:0, monthBase:0, yearBase:0, lastDay:c.day, lastMonth:c.month, lastYear:c.year }; }
+            data.today=toNum(data.today)+amount;
+            return recompute(data);
+        }, '+'+comma(amount)+'원 추가 완료');
+    }
+
     function closeDay(){
         if(!confirm('하루 마무리를 진행할까요?\n오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.')) return;
         var cur=dateParts();
