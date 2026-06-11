@@ -25,7 +25,7 @@ h1 {
   background: #2c2c2c;
   border-radius: 10px;
   padding: 18px;
-  max-width: 440px;
+  max-width: 520px;
   margin: 14px auto;
 }
 
@@ -128,9 +128,20 @@ button.restore:hover {
   font-size: 16px;
 }
 
+.net-preview {
+  display: inline-block;
+  min-width: 120px;
+  text-align: left;
+  margin-left: 4px;
+  color: #ffd166;
+  font-size: 13px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
 #notice {
   display: none;
-  max-width: 440px;
+  max-width: 520px;
   margin: 10px auto;
   padding: 12px 14px;
   border-radius: 8px;
@@ -193,6 +204,18 @@ button.restore:hover {
 .quick-custom button:hover {
   background: #7d3c98;
 }
+
+@media (max-width: 560px) {
+  .card {
+    max-width: 440px;
+  }
+
+  .net-preview {
+    display: block;
+    margin: 4px 0 0 96px;
+    text-align: left;
+  }
+}
 </style>
 </head>
 
@@ -206,16 +229,19 @@ button.restore:hover {
   <div class="row">
     <label>일수익</label>
     <input id="daily" type="text" inputmode="numeric" placeholder="오늘 수익">
+    <span class="net-preview" id="dailyNetPreview">세후 -</span>
   </div>
 
   <div class="row">
     <label>월수익</label>
     <input id="weekly" type="text" inputmode="numeric" placeholder="이번 달 합계">
+    <span class="net-preview" id="weeklyNetPreview">세후 -</span>
   </div>
 
   <div class="row">
     <label>연수익</label>
     <input id="monthly" type="text" inputmode="numeric" placeholder="올해 합계">
+    <span class="net-preview" id="monthlyNetPreview">세후 -</span>
   </div>
 
   <div class="row">
@@ -245,6 +271,7 @@ button.restore:hover {
     • 평소엔 <b>일수익</b>만 입력하면 됩니다. 저장하면 월·연 표시값에 자동 반영됩니다.<br>
     • <b>하루 마무리</b>를 누르면 오늘 수익이 월·연 누적값에 반영되고 일수익은 0원이 됩니다.<br>
     • 월수익·연수익을 직접 고쳐서 저장하면 그 값이 적용되고, 그 값부터 다시 자동 합산됩니다.<br>
+    • 입력칸 오른쪽의 <b>세후 금액</b>은 5.5% 차감 표시용입니다. 실제 저장값은 바뀌지 않습니다.<br>
     • <b>일·월·연 목표</b>를 입력하면 오버레이에 달성률(%)이 표시됩니다. 비워두면 표시 안 함.
   </div>
 </div>
@@ -290,8 +317,7 @@ button.restore:hover {
 
   <div class="muted" style="margin-top:6px">
     • 입력한 금액에서 5.5%를 뺀 세후 금액만 표시합니다.<br>
-    • 일수익, 월수익, 연수익에는 자동으로 반영되지 않습니다.<br>
-    • 세후 금액을 확인한 뒤 필요한 경우 일수익에 직접 입력하세요.
+    • 일수익, 월수익, 연수익에는 자동으로 반영되지 않습니다.
   </div>
 </div>
 
@@ -364,6 +390,40 @@ function won(n) {
   return comma(n) + '원';
 }
 
+function netAfterTax(amount) {
+  amount = toNum(amount);
+  return Math.round(amount * (1 - TAX_RATE));
+}
+
+function taxOnly(amount) {
+  amount = toNum(amount);
+  return amount - netAfterTax(amount);
+}
+
+function setNetPreview(id, amount) {
+  var el = document.getElementById(id);
+  if (!el) return;
+
+  amount = toNum(amount);
+
+  if (amount <= 0) {
+    el.innerText = '세후 -';
+    return;
+  }
+
+  el.innerText = '세후 ' + won(netAfterTax(amount));
+}
+
+function updateNetPreviews() {
+  var dailyEl = document.getElementById('daily');
+  var weeklyEl = document.getElementById('weekly');
+  var monthlyEl = document.getElementById('monthly');
+
+  setNetPreview('dailyNetPreview', dailyEl ? dailyEl.value : 0);
+  setNetPreview('weeklyNetPreview', weeklyEl ? weeklyEl.value : 0);
+  setNetPreview('monthlyNetPreview', monthlyEl ? monthlyEl.value : 0);
+}
+
 function formatMoneyInput(el) {
   if (!el) return;
 
@@ -371,10 +431,12 @@ function formatMoneyInput(el) {
 
   if (raw.trim() === '') {
     el.value = '';
+    updateNetPreviews();
     return;
   }
 
   el.value = comma(raw);
+  updateNetPreviews();
 }
 
 function bindMoneyInputs() {
@@ -565,6 +627,8 @@ function render(data) {
   fillGoal('dailyGoal', toNum(data.dailyGoal));
   fillGoal('monthGoal', toNum(data.monthGoal));
   fillGoal('yearGoal', toNum(data.yearGoal));
+
+  updateNetPreviews();
 }
 
 function fill(id, val) {
@@ -628,16 +692,6 @@ function addCustomIncome() {
   addIncome(amount);
 
   if (el) el.value = '';
-}
-
-function netAfterTax(amount) {
-  amount = toNum(amount);
-  return Math.round(amount * (1 - TAX_RATE));
-}
-
-function taxOnly(amount) {
-  amount = toNum(amount);
-  return amount - netAfterTax(amount);
 }
 
 function calcNetIncome() {
