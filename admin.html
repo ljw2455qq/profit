@@ -1,319 +1,829 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>관리 페이지</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="firebase.js"></script>
-    <style>
-        body { font-family: 'Noto Sans KR', sans-serif; background: #222; color: white; text-align: center; padding: 20px; }
-        h1 { font-size: 20px; }
-        .card { background:#2c2c2c; border-radius:10px; padding:18px; max-width:440px; margin:14px auto; }
-        label { display:inline-block; width:80px; text-align:right; margin-right:8px; font-size:15px; color:#cfcfcf; }
-        input { padding: 10px; margin: 6px; font-size: 18px; width: 200px; text-align:right; border-radius:6px; border:none; }
-        button { padding: 12px 26px; font-size: 17px; background: #4CAF50; color: white; border: none; cursor: pointer; border-radius:6px; }
-        button:hover { background: #45a049; }
-        button.reset { background:#c0392b; margin:4px; font-size:15px; padding:10px 16px; }
-        button.reset:hover { background:#a93226; }
-        button.dayend { background:#f39c12; color:#211400; font-weight:700; margin-top:4px; }
-        button.dayend:hover { background:#e67e22; }
-        button.restore { background:#2980b9; margin:4px; font-size:15px; padding:10px 16px; }
-        button.restore:hover { background:#2471a3; }
-        .row { margin:8px 0; }
-        .muted { color:#888; font-size:13px; margin-top:6px; line-height:1.5; }
-        .live { font-size: 15px; color:#bbb; }
-        .live b { color:#fff; font-size:18px; }
-        .goal-rate { margin-top:10px; color:#ddd; font-size:14px; line-height:1.7; }
-        .goal-rate b { color:#ffd166; font-size:16px; }
-        #notice { display:none; max-width:440px; margin:10px auto; padding:12px 14px; border-radius:8px; font-size:15px; font-weight:700; }
-        #notice.success { display:block; background:#1f7a3a; color:#fff; }
-        #notice.error { display:block; background:#b33939; color:#fff; }
-        .quick-add { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:8px; }
-        .quick-add button { background:#34495e; padding:10px 14px; font-size:15px; min-width:92px; }
-        .quick-add button:hover { background:#2c3e50; }
-        .quick-custom { display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap; margin-top:10px; }
-        .quick-custom input { width:150px; margin:0; font-size:16px; }
-        .quick-custom button { background:#8e44ad; padding:10px 18px; font-size:15px; }
-        .quick-custom button:hover { background:#7d3c98; }
-    </style>
+<meta charset="UTF-8">
+<title>관리 페이지</title>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="firebase.js"></script>
+
+<style>
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: #222;
+  color: white;
+  text-align: center;
+  padding: 20px;
+}
+
+h1 {
+  font-size: 20px;
+}
+
+.card {
+  background: #2c2c2c;
+  border-radius: 10px;
+  padding: 18px;
+  max-width: 440px;
+  margin: 14px auto;
+}
+
+label {
+  display: inline-block;
+  width: 80px;
+  text-align: right;
+  margin-right: 8px;
+  font-size: 15px;
+  color: #cfcfcf;
+}
+
+input {
+  padding: 10px;
+  margin: 6px;
+  font-size: 18px;
+  width: 200px;
+  text-align: right;
+  border-radius: 6px;
+  border: none;
+}
+
+button {
+  padding: 12px 26px;
+  font-size: 17px;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+button:hover {
+  background: #45a049;
+}
+
+button.reset {
+  background: #c0392b;
+  margin: 4px;
+  font-size: 15px;
+  padding: 10px 16px;
+}
+
+button.reset:hover {
+  background: #a93226;
+}
+
+button.dayend {
+  background: #f39c12;
+  color: #211400;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+button.dayend:hover {
+  background: #e67e22;
+}
+
+button.restore {
+  background: #2980b9;
+  margin: 4px;
+  font-size: 15px;
+  padding: 10px 16px;
+}
+
+button.restore:hover {
+  background: #2471a3;
+}
+
+.row {
+  margin: 8px 0;
+}
+
+.muted {
+  color: #888;
+  font-size: 13px;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.live {
+  font-size: 15px;
+  color: #bbb;
+}
+
+.live b {
+  color: #fff;
+  font-size: 18px;
+}
+
+.goal-rate {
+  margin-top: 10px;
+  color: #ddd;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.goal-rate b {
+  color: #ffd166;
+  font-size: 16px;
+}
+
+#notice {
+  display: none;
+  max-width: 440px;
+  margin: 10px auto;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+#notice.success {
+  display: block;
+  background: #1f7a3a;
+  color: #fff;
+}
+
+#notice.error {
+  display: block;
+  background: #b33939;
+  color: #fff;
+}
+
+.quick-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.quick-add button {
+  background: #34495e;
+  padding: 10px 14px;
+  font-size: 15px;
+  min-width: 92px;
+}
+
+.quick-add button:hover {
+  background: #2c3e50;
+}
+
+.quick-custom {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.quick-custom input {
+  width: 150px;
+  margin: 0;
+  font-size: 16px;
+}
+
+.quick-custom button {
+  background: #8e44ad;
+  padding: 10px 18px;
+  font-size: 15px;
+}
+
+.quick-custom button:hover {
+  background: #7d3c98;
+}
+</style>
 </head>
+
 <body>
-    <h1>OBS 오버레이 수익 입력</h1>
-    <div id="notice"></div>
 
-    <div class="card">
-        <div class="row"><label>일수익</label><input id="daily" type="text" inputmode="numeric" placeholder="오늘 수익"></div>
-        <div class="row"><label>월수익</label><input id="weekly" type="text" inputmode="numeric" placeholder="이번 달 합계"></div>
-        <div class="row"><label>연수익</label><input id="monthly" type="text" inputmode="numeric" placeholder="올해 합계"></div>
-        <div class="row"><label>일 목표</label><input id="dailyGoal" type="text" inputmode="numeric" placeholder="일 목표 금액(선택)"></div>
-        <div class="row"><label>월 목표</label><input id="monthGoal" type="text" inputmode="numeric" placeholder="월 목표 금액(선택)"></div>
-        <div class="row"><label>연 목표</label><input id="yearGoal" type="text" inputmode="numeric" placeholder="연 목표 금액(선택)"></div>
-        <div class="row"><button onclick="saveData()">저장</button></div>
-        <div class="row"><button class="dayend" onclick="closeDay()">🌙 하루 마무리</button></div>
-        <div class="muted">
-            • 평소엔 <b>일수익</b>만 입력하면 됩니다. 하루가 지나면 자동으로 월·연 합계에 더해져요.<br>
-            • <b>하루 마무리</b>를 누르면 오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.<br>
-            • 월수익·연수익을 직접 고쳐서 저장하면 그 값이 적용되고, 그 값부터 다시 자동 합산됩니다.<br>
-            • <b>일·월·연 목표</b>를 입력하면 오버레이에 달성률(%)이 표시됩니다. (비워두면 표시 안 함)
-        </div>
-    </div>
+<h1>OBS 오버레이 수익 입력</h1>
 
-    <div class="card">
-        <div class="muted" style="margin-bottom:8px">⚡ 빠른 수익 추가</div>
-        <div class="quick-add">
-            <button onclick="addIncome(1000)">+1,000</button>
-            <button onclick="addIncome(5000)">+5,000</button>
-            <button onclick="addIncome(10000)">+10,000</button>
-            <button onclick="addIncome(50000)">+50,000</button>
-            <button onclick="addIncome(100000)">+100,000</button>
-        </div>
-        <div class="quick-custom">
-            <input id="quickAmount" type="text" inputmode="numeric" placeholder="직접 추가 금액">
-            <button onclick="addCustomIncome()">직접 추가</button>
-        </div>
-        <div class="muted" style="margin-top:6px">• 버튼이나 직접 추가 금액을 누르면 일수익에 바로 더해지고 자동 백업됩니다.</div>
-    </div>
+<div id="notice"></div>
 
-    <div class="card">
-        <div class="muted" style="margin-bottom:8px">⚠️ 초기화 (각 항목 0으로)</div>
-        <div class="row">
-            <button class="reset" onclick="resetDaily()">일수익 초기화</button>
-            <button class="reset" onclick="resetMonth()">월수익 초기화</button>
-            <button class="reset" onclick="resetYear()">연수익 초기화</button>
-            <button class="restore" onclick="restoreBackup()">직전 값 복구</button>
-        </div>
-        <div class="muted" style="margin-top:6px">• 저장, 하루 마무리, 초기화 전에는 직전 값이 자동 백업됩니다.<br>• 월수익 초기화 시 오늘 수익도 함께 0이 됩니다.<br>• 연수익 초기화 시 일·월·연 수익이 모두 0이 됩니다.</div>
-    </div>
+<div class="card">
+  <div class="row">
+    <label>일수익</label>
+    <input id="daily" type="text" inputmode="numeric" placeholder="오늘 수익">
+  </div>
 
-    <div class="card live">
-        <div class="row">현재 표시 — 일: <b id="vDaily">0원</b> / 월: <b id="vWeekly">0원</b> / 연: <b id="vMonthly">0원</b></div>
-        <div class="goal-rate" id="goalRate">목표 달성률 — 일: <b id="rDaily">-</b> / 월: <b id="rMonth">-</b> / 연: <b id="rYear">-</b></div>
-        <div class="muted" id="lastInfo"></div>
-    </div>
+  <div class="row">
+    <label>월수익</label>
+    <input id="weekly" type="text" inputmode="numeric" placeholder="이번 달 합계">
+  </div>
 
-    <script>
-    var noticeTimer=null;
-    function showNotice(message, type){
-        var el=document.getElementById('notice');
-        if(!el) return;
-        el.innerText=message;
-        el.className=(type==='error'?'error':'success');
-        if(noticeTimer) clearTimeout(noticeTimer);
-        noticeTimer=setTimeout(function(){ el.style.display='none'; el.className=''; }, 3000);
-        el.style.display='block';
-    }
-    function toNum(v){ if(v===null||v===undefined) return 0; var n=parseInt(String(v).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
-    function comma(n){ return toNum(n).toLocaleString(); }
-    function won(n){ return comma(n)+'원'; }
-    function formatMoneyInput(el){
-        if(!el) return;
-        var raw=String(el.value||'');
-        if(raw.trim()===''){ el.value=''; return; }
-        el.value=comma(raw);
-    }
-    function bindMoneyInputs(){
-        ['daily','weekly','monthly','dailyGoal','monthGoal','yearGoal','quickAmount'].forEach(function(id){
-            var el=document.getElementById(id);
-            if(!el) return;
-            el.addEventListener('input', function(){ formatMoneyInput(el); });
-            el.addEventListener('blur', function(){ formatMoneyInput(el); });
-        });
-    }
-    function rateText(value, goal){
-        value=toNum(value); goal=toNum(goal);
-        if(goal<=0) return '-';
-        return Math.round((value/goal)*100)+'%';
-    }
-    function renderGoalRate(data){
-        document.getElementById('rDaily').innerText=rateText(data.daily, data.dailyGoal);
-        document.getElementById('rMonth').innerText=rateText(data.weekly, data.monthGoal);
-        document.getElementById('rYear').innerText=rateText(data.monthly, data.yearGoal);
-    }
-    function dateParts(){
-        var n=new Date();
-        var y=n.getFullYear();
-        var m=String(n.getMonth()+1).padStart(2,'0');
-        var d=String(n.getDate()).padStart(2,'0');
-        return { day:y+'-'+m+'-'+d, month:y+'-'+m, year:String(y) };
-    }
+  <div class="row">
+    <label>연수익</label>
+    <input id="monthly" type="text" inputmode="numeric" placeholder="올해 합계">
+  </div>
 
-    // 누적값(base) 기준으로 표시값 재계산: 월수익 = 월누적 + 오늘, 연수익 = 연누적 + 오늘
-    function recompute(data){
-        var today=toNum(data.today);
-        var monthBase=toNum(data.monthBase);
-        var yearBase=toNum(data.yearBase);
-        data.today=today; data.monthBase=monthBase; data.yearBase=yearBase;
-        data.daily=today;
-        data.weekly=monthBase+today;
-        data.monthly=yearBase+today;
-        return data;
-    }
+  <div class="row">
+    <label>일 목표</label>
+    <input id="dailyGoal" type="text" inputmode="numeric" placeholder="일 목표 금액(선택)">
+  </div>
 
-    // 날짜가 바뀌었으면 어제 일수익을 누적에 합산 (트랜잭션으로 중복 방지)
-    function rollover(cb){
-        var cur=dateParts();
-        db.ref('overlayData').transaction(function(data){
-            if(!data) data={ today:0, monthBase:0, yearBase:0 };
-            var today=toNum(data.today), monthBase=toNum(data.monthBase), yearBase=toNum(data.yearBase);
-            if(!data.lastDay){
-                data.lastDay=cur.day; data.lastMonth=cur.month; data.lastYear=cur.year;
-                return recompute(data);
-            }
-            if(data.lastDay!==cur.day){
-                yearBase  = (data.lastYear===cur.year)  ? yearBase+today  : 0;
-                monthBase = (data.lastMonth===cur.month) ? monthBase+today : 0;
-                today=0;
-                data.today=today; data.monthBase=monthBase; data.yearBase=yearBase;
-                data.lastDay=cur.day; data.lastMonth=cur.month; data.lastYear=cur.year;
-                return recompute(data);
-            }
-            return data;
-        }, function(err){ if(cb) cb(); });
-    }
+  <div class="row">
+    <label>월 목표</label>
+    <input id="monthGoal" type="text" inputmode="numeric" placeholder="월 목표 금액(선택)">
+  </div>
 
-    function backupAndTransaction(actionName, updater, successMsg){
-        db.ref('overlayData').once('value').then(function(snap){
-            var backup=snap.val()||{};
-            backup.backupAt=new Date().toISOString();
-            backup.backupAction=actionName;
-            return db.ref('overlayDataBackup').set(backup);
-        }).then(function(){
-            db.ref('overlayData').transaction(updater, function(err){
-                showNotice(err ? actionName+' 실패: '+err : successMsg, err ? 'error' : 'success');
-            });
-        }).catch(function(err){
-            showNotice('백업 실패: '+err, 'error');
-        });
-    }
+  <div class="row">
+    <label>연 목표</label>
+    <input id="yearGoal" type="text" inputmode="numeric" placeholder="연 목표 금액(선택)">
+  </div>
 
-    function restoreBackup(){
-        db.ref('overlayDataBackup').once('value').then(function(snap){
-            var backup=snap.val();
-            if(!backup){ showNotice('복구할 백업이 없습니다.', 'error'); return; }
-            var backupAt=backup.backupAt||'-';
-            var backupAction=backup.backupAction||'이전 작업';
-            if(!confirm('직전 값을 복구할까요?\n백업 시점: '+backupAt+'\n백업 작업: '+backupAction)) return;
-            delete backup.backupAt;
-            delete backup.backupAction;
-            backup=recompute(backup);
-            db.ref('overlayData').set(backup, function(err){
-                showNotice(err?'복구 실패: '+err:'직전 값 복구 완료', err?'error':'success');
-            });
-        }).catch(function(err){
-            showNotice('백업 불러오기 실패: '+err, 'error');
-        });
-    }
+  <div class="row">
+    <button onclick="saveData()">저장</button>
+  </div>
 
-    var firstRender=true;
-    function render(data){
-        data=data||{};
-        document.getElementById('vDaily').innerText=won(data.daily);
-        document.getElementById('vWeekly').innerText=won(data.weekly);
-        document.getElementById('vMonthly').innerText=won(data.monthly);
-        renderGoalRate(data);
-        document.getElementById('lastInfo').innerText='마지막 기준 날짜: '+(data.lastDay||'-');
-        // 입력하는 중이 아닌 칸은 현재값으로 채워줌
-        fill('daily', toNum(data.daily));
-        fill('weekly', toNum(data.weekly));
-        fill('monthly', toNum(data.monthly));
-        fillGoal('dailyGoal', toNum(data.dailyGoal));
-        fillGoal('monthGoal', toNum(data.monthGoal));
-        fillGoal('yearGoal', toNum(data.yearGoal));
-        firstRender=false;
-    }
-    function fill(id, val){
-        var el=document.getElementById(id);
-        if(document.activeElement!==el) el.value = comma(val);
-    }
-    function fillGoal(id, val){
-        var el=document.getElementById(id);
-        if(document.activeElement!==el) el.value = (val>0 ? comma(val) : '');
-    }
-    function addIncome(amount){
-        amount=toNum(amount);
-        if(amount<=0){ showNotice('추가할 금액을 입력해 주세요.', 'error'); return; }
-        backupAndTransaction('빠른 수익 추가', function(data){
-            if(!data){ var c=dateParts(); data={ today:0, monthBase:0, yearBase:0, lastDay:c.day, lastMonth:c.month, lastYear:c.year }; }
-            data.today=toNum(data.today)+amount;
-            return recompute(data);
-        }, '+'+comma(amount)+'원 추가 완료');
-    }
+  <div class="row">
+    <button class="dayend" onclick="closeDay()">🌙 하루 마무리</button>
+  </div>
 
-    function addCustomIncome(){
-        var el=document.getElementById('quickAmount');
-        var amount=toNum(el ? el.value : 0);
-        if(amount<=0){ showNotice('직접 추가할 금액을 입력해 주세요.', 'error'); return; }
-        addIncome(amount);
-        if(el) el.value='';
-    }
+  <div class="muted">
+    • 평소엔 <b>일수익</b>만 입력하면 됩니다. 저장하면 월·연 표시값에 자동 반영됩니다.<br>
+    • <b>하루 마무리</b>를 누르면 오늘 수익이 월·연 누적값에 반영되고 일수익은 0원이 됩니다.<br>
+    • 월수익·연수익을 직접 고쳐서 저장하면 그 값이 적용되고, 그 값부터 다시 자동 합산됩니다.<br>
+    • <b>일·월·연 목표</b>를 입력하면 오버레이에 달성률(%)이 표시됩니다. 비워두면 표시 안 함.
+  </div>
+</div>
 
-    function confirmResetAction(title, detail){
-        var input=prompt(title+'\n'+detail+'\n\n진행하려면 아래에 "초기화"를 입력하세요.');
-        if(input===null) return false;
-        if(String(input).trim()!=='초기화'){
-            showNotice('초기화가 취소되었습니다. 정확히 "초기화"를 입력해야 합니다.', 'error');
-            return false;
-        }
-        return true;
-    }
+<div class="card">
+  <div class="muted" style="margin-bottom:8px">⚡ 빠른 수익 추가</div>
 
-    function closeDay(){
-        if(!confirm('하루 마무리를 진행할까요?\n오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.')) return;
-        var cur=dateParts();
-        backupAndTransaction('하루 마무리', function(data){
-            if(!data) data={ today:0, monthBase:0, yearBase:0 };
-            var today=toNum(data.today);
-            data.monthBase=toNum(data.monthBase)+today;
-            data.yearBase=toNum(data.yearBase)+today;
-            data.today=0;
-            data.lastDay=cur.day;
-            data.lastMonth=cur.month;
-            data.lastYear=cur.year;
-            return recompute(data);
-        }, '하루 마무리 완료');
-    }
+  <div class="quick-add">
+    <button onclick="addIncome(1000)">+1,000</button>
+    <button onclick="addIncome(5000)">+5,000</button>
+    <button onclick="addIncome(10000)">+10,000</button>
+    <button onclick="addIncome(50000)">+50,000</button>
+    <button onclick="addIncome(100000)">+100,000</button>
+  </div>
 
-    function resetDaily(){
-        if(!confirmResetAction('일수익 초기화', '오늘 일수익만 0원으로 초기화됩니다.')) return;
-        backupAndTransaction('일수익 초기화', function(data){ if(!data) return data; data.today=0; return recompute(data); }, '일수익 초기화 완료');
-    }
-    function resetMonth(){
-        if(!confirmResetAction('월수익 초기화', '이번 달 수익과 오늘 일수익이 모두 0원으로 초기화됩니다.')) return;
-        backupAndTransaction('월수익 초기화', function(data){ if(!data) return data; data.today=0; data.monthBase=0; return recompute(data); }, '월수익 초기화 완료');
-    }
-    function resetYear(){
-        if(!confirmResetAction('연수익 초기화', '일수익, 월수익, 연수익이 모두 0원으로 초기화됩니다.')) return;
-        backupAndTransaction('연수익 초기화', function(data){ if(!data) return data; data.today=0; data.monthBase=0; data.yearBase=0; return recompute(data); }, '연수익 초기화 완료');
-    }
+  <div class="quick-custom">
+    <input id="quickAmount" type="text" inputmode="numeric" placeholder="직접 추가 금액">
+    <button onclick="addCustomIncome()">직접 추가</button>
+  </div>
 
-    function saveData(){
-        var dailyV=toNum(document.getElementById('daily').value);
-        var weeklyV=toNum(document.getElementById('weekly').value);   // 월수익(표시 합계)
-        var monthlyV=toNum(document.getElementById('monthly').value); // 연수익(표시 합계)
-        var dailyGoalV=toNum(document.getElementById('dailyGoal').value);
-        var monthGoalV=toNum(document.getElementById('monthGoal').value);
-        var yearGoalV=toNum(document.getElementById('yearGoal').value);
-        backupAndTransaction('저장', function(data){
-            if(!data){ var c=dateParts(); data={ today:0, monthBase:0, yearBase:0, lastDay:c.day, lastMonth:c.month, lastYear:c.year }; }
-            data.today=dailyV;
-            // 월·연은 '표시 합계'를 입력받아 누적값(base)으로 역산 (base = 합계 - 오늘)
-            data.monthBase=weeklyV-dailyV;
-            data.yearBase=monthlyV-dailyV;
-            data.dailyGoal=dailyGoalV;
-            data.monthGoal=monthGoalV;
-            data.yearGoal=yearGoalV;
-            return recompute(data);
-        }, '저장 완료!');
-    }
+  <div class="muted" style="margin-top:6px">
+    • 버튼이나 직접 추가 금액을 누르면 일수익에 바로 더해지고 자동 백업됩니다.
+  </div>
+</div>
 
-    // 숫자 입력창은 입력 중에도 자동으로 콤마를 표시
-    bindMoneyInputs();
+<div class="card">
+  <div class="muted" style="margin-bottom:8px">⚠️ 초기화</div>
 
-    // 페이지 열릴 때 날짜 롤오버 점검 후 실시간 표시
-    rollover(function(){
-        db.ref('overlayData').on('value', function(snap){ render(snap.val()); });
+  <div class="row">
+    <button class="reset" onclick="resetDaily()">일수익 초기화</button>
+    <button class="reset" onclick="resetMonth()">월수익 초기화</button>
+    <button class="reset" onclick="resetYear()">연수익 초기화</button>
+    <button class="restore" onclick="restoreBackup()">직전 값 복구</button>
+  </div>
+
+  <div class="muted" style="margin-top:6px">
+    • 저장, 하루 마무리, 초기화 전에는 직전 값이 자동 백업됩니다.<br>
+    • 월수익 초기화 시 오늘 수익도 함께 0이 됩니다.<br>
+    • 연수익 초기화 시 일·월·연 수익이 모두 0이 됩니다.
+  </div>
+</div>
+
+<div class="card live">
+  <div class="row">
+    현재 표시 —
+    일: <b id="vDaily">0원</b> /
+    월: <b id="vWeekly">0원</b> /
+    연: <b id="vMonthly">0원</b>
+  </div>
+
+  <div class="goal-rate" id="goalRate">
+    목표 달성률 —
+    일: <b id="rDaily">-</b> /
+    월: <b id="rMonth">-</b> /
+    연: <b id="rYear">-</b>
+  </div>
+
+  <div class="muted" id="lastInfo"></div>
+</div>
+
+<script>
+var noticeTimer = null;
+
+function showNotice(message, type) {
+  var el = document.getElementById('notice');
+  if (!el) return;
+
+  el.innerText = message;
+  el.className = type === 'error' ? 'error' : 'success';
+  el.style.display = 'block';
+
+  if (noticeTimer) clearTimeout(noticeTimer);
+
+  noticeTimer = setTimeout(function () {
+    el.style.display = 'none';
+    el.className = '';
+  }, 3000);
+}
+
+function toNum(v) {
+  if (v === null || v === undefined) return 0;
+  var n = parseInt(String(v).replace(/[^0-9-]/g, ''), 10);
+  return isNaN(n) ? 0 : n;
+}
+
+function comma(n) {
+  return toNum(n).toLocaleString();
+}
+
+function won(n) {
+  return comma(n) + '원';
+}
+
+function formatMoneyInput(el) {
+  if (!el) return;
+
+  var raw = String(el.value || '');
+
+  if (raw.trim() === '') {
+    el.value = '';
+    return;
+  }
+
+  el.value = comma(raw);
+}
+
+function bindMoneyInputs() {
+  [
+    'daily',
+    'weekly',
+    'monthly',
+    'dailyGoal',
+    'monthGoal',
+    'yearGoal',
+    'quickAmount'
+  ].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+
+    el.addEventListener('input', function () {
+      formatMoneyInput(el);
     });
-    </script>
+
+    el.addEventListener('blur', function () {
+      formatMoneyInput(el);
+    });
+  });
+}
+
+function rateText(value, goal) {
+  value = toNum(value);
+  goal = toNum(goal);
+
+  if (goal <= 0) return '-';
+
+  return Math.round((value / goal) * 100) + '%';
+}
+
+function renderGoalRate(data) {
+  document.getElementById('rDaily').innerText = rateText(data.daily, data.dailyGoal);
+  document.getElementById('rMonth').innerText = rateText(data.weekly, data.monthGoal);
+  document.getElementById('rYear').innerText = rateText(data.monthly, data.yearGoal);
+}
+
+function dateParts() {
+  var n = new Date();
+  var y = n.getFullYear();
+  var m = String(n.getMonth() + 1).padStart(2, '0');
+  var d = String(n.getDate()).padStart(2, '0');
+
+  return {
+    day: y + '-' + m + '-' + d,
+    month: y + '-' + m,
+    year: String(y)
+  };
+}
+
+/*
+  데이터 구조
+
+  today     = 오늘 일수익
+  monthBase = 오늘 수익을 제외한 이번 달 누적 수익
+  yearBase  = 오늘 수익을 제외한 올해 누적 수익
+
+  daily   = today
+  weekly  = monthBase + today
+  monthly = yearBase + today
+*/
+function recompute(data) {
+  var today = toNum(data.today);
+  var monthBase = toNum(data.monthBase);
+  var yearBase = toNum(data.yearBase);
+
+  data.today = today;
+  data.monthBase = monthBase;
+  data.yearBase = yearBase;
+
+  data.daily = today;
+  data.weekly = monthBase + today;
+  data.monthly = yearBase + today;
+
+  return data;
+}
+
+/*
+  날짜가 바뀌었으면 이전 today를 누적에 합산.
+  예:
+  어제 today = 50,000
+  오늘 페이지 열면:
+  monthBase += 50,000
+  yearBase += 50,000
+  today = 0
+*/
+function rollover(cb) {
+  var cur = dateParts();
+
+  db.ref('overlayData').transaction(function (data) {
+    if (!data) {
+      data = {
+        today: 0,
+        monthBase: 0,
+        yearBase: 0,
+        lastDay: cur.day,
+        lastMonth: cur.month,
+        lastYear: cur.year
+      };
+
+      return recompute(data);
+    }
+
+    var today = toNum(data.today);
+    var monthBase = toNum(data.monthBase);
+    var yearBase = toNum(data.yearBase);
+
+    if (!data.lastDay) {
+      data.lastDay = cur.day;
+      data.lastMonth = cur.month;
+      data.lastYear = cur.year;
+      return recompute(data);
+    }
+
+    if (data.lastDay !== cur.day) {
+      yearBase = data.lastYear === cur.year ? yearBase + today : 0;
+      monthBase = data.lastMonth === cur.month ? monthBase + today : 0;
+      today = 0;
+
+      data.today = today;
+      data.monthBase = monthBase;
+      data.yearBase = yearBase;
+      data.lastDay = cur.day;
+      data.lastMonth = cur.month;
+      data.lastYear = cur.year;
+
+      return recompute(data);
+    }
+
+    return recompute(data);
+  }, function () {
+    if (cb) cb();
+  });
+}
+
+function backupAndTransaction(actionName, updater, successMsg) {
+  db.ref('overlayData').once('value').then(function (snap) {
+    var backup = snap.val() || {};
+    backup.backupAt = new Date().toISOString();
+    backup.backupAction = actionName;
+
+    return db.ref('overlayDataBackup').set(backup);
+  }).then(function () {
+    db.ref('overlayData').transaction(updater, function (err) {
+      showNotice(
+        err ? actionName + ' 실패: ' + err : successMsg,
+        err ? 'error' : 'success'
+      );
+    });
+  }).catch(function (err) {
+    showNotice('백업 실패: ' + err, 'error');
+  });
+}
+
+function restoreBackup() {
+  db.ref('overlayDataBackup').once('value').then(function (snap) {
+    var backup = snap.val();
+
+    if (!backup) {
+      showNotice('복구할 백업이 없습니다.', 'error');
+      return;
+    }
+
+    var backupAt = backup.backupAt || '-';
+    var backupAction = backup.backupAction || '이전 작업';
+
+    if (!confirm('직전 값을 복구할까요?\n백업 시점: ' + backupAt + '\n백업 작업: ' + backupAction)) {
+      return;
+    }
+
+    delete backup.backupAt;
+    delete backup.backupAction;
+
+    backup = recompute(backup);
+
+    db.ref('overlayData').set(backup, function (err) {
+      showNotice(
+        err ? '복구 실패: ' + err : '직전 값 복구 완료',
+        err ? 'error' : 'success'
+      );
+    });
+  }).catch(function (err) {
+    showNotice('백업 불러오기 실패: ' + err, 'error');
+  });
+}
+
+function render(data) {
+  data = data || {};
+  data = recompute(data);
+
+  document.getElementById('vDaily').innerText = won(data.daily);
+  document.getElementById('vWeekly').innerText = won(data.weekly);
+  document.getElementById('vMonthly').innerText = won(data.monthly);
+
+  renderGoalRate(data);
+
+  document.getElementById('lastInfo').innerText =
+    '마지막 기준 날짜: ' + (data.lastDay || '-');
+
+  fill('daily', toNum(data.daily));
+  fill('weekly', toNum(data.weekly));
+  fill('monthly', toNum(data.monthly));
+
+  fillGoal('dailyGoal', toNum(data.dailyGoal));
+  fillGoal('monthGoal', toNum(data.monthGoal));
+  fillGoal('yearGoal', toNum(data.yearGoal));
+}
+
+function fill(id, val) {
+  var el = document.getElementById(id);
+  if (!el) return;
+
+  if (document.activeElement !== el) {
+    el.value = comma(val);
+  }
+}
+
+function fillGoal(id, val) {
+  var el = document.getElementById(id);
+  if (!el) return;
+
+  if (document.activeElement !== el) {
+    el.value = val > 0 ? comma(val) : '';
+  }
+}
+
+function addIncome(amount) {
+  amount = toNum(amount);
+
+  if (amount <= 0) {
+    showNotice('추가할 금액을 입력해 주세요.', 'error');
+    return;
+  }
+
+  backupAndTransaction('빠른 수익 추가', function (data) {
+    var c = dateParts();
+
+    if (!data) {
+      data = {
+        today: 0,
+        monthBase: 0,
+        yearBase: 0,
+        lastDay: c.day,
+        lastMonth: c.month,
+        lastYear: c.year
+      };
+    }
+
+    data.today = toNum(data.today) + amount;
+    data.lastDay = data.lastDay || c.day;
+    data.lastMonth = data.lastMonth || c.month;
+    data.lastYear = data.lastYear || c.year;
+
+    return recompute(data);
+  }, '+' + comma(amount) + '원 추가 완료');
+}
+
+function addCustomIncome() {
+  var el = document.getElementById('quickAmount');
+  var amount = toNum(el ? el.value : 0);
+
+  if (amount <= 0) {
+    showNotice('직접 추가할 금액을 입력해 주세요.', 'error');
+    return;
+  }
+
+  addIncome(amount);
+
+  if (el) el.value = '';
+}
+
+function confirmResetAction(title, detail) {
+  var input = prompt(
+    title + '\n' +
+    detail + '\n\n' +
+    '진행하려면 아래에 "초기화"를 입력하세요.'
+  );
+
+  if (input === null) return false;
+
+  if (String(input).trim() !== '초기화') {
+    showNotice('초기화가 취소되었습니다. 정확히 "초기화"를 입력해야 합니다.', 'error');
+    return false;
+  }
+
+  return true;
+}
+
+/*
+  하루 마무리
+
+  today를 monthBase와 yearBase에 더한 뒤
+  today를 0으로 초기화.
+
+  예:
+  today = 50,000
+  monthBase = 100,000
+  yearBase = 500,000
+
+  하루 마무리 후:
+  today = 0
+  monthBase = 150,000
+  yearBase = 550,000
+
+  표시값:
+  daily = 0
+  weekly = 150,000
+  monthly = 550,000
+*/
+function closeDay() {
+  if (!confirm('하루 마무리를 진행할까요?\n오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.')) {
+    return;
+  }
+
+  var cur = dateParts();
+
+  backupAndTransaction('하루 마무리', function (data) {
+    if (!data) {
+      data = {
+        today: 0,
+        monthBase: 0,
+        yearBase: 0
+      };
+    }
+
+    var today = toNum(data.today);
+
+    data.monthBase = toNum(data.monthBase) + today;
+    data.yearBase = toNum(data.yearBase) + today;
+    data.today = 0;
+
+    data.lastDay = cur.day;
+    data.lastMonth = cur.month;
+    data.lastYear = cur.year;
+
+    return recompute(data);
+  }, '하루 마무리 완료');
+}
+
+function resetDaily() {
+  if (!confirmResetAction('일수익 초기화', '오늘 일수익만 0원으로 초기화됩니다.')) {
+    return;
+  }
+
+  backupAndTransaction('일수익 초기화', function (data) {
+    if (!data) return data;
+
+    data.today = 0;
+
+    return recompute(data);
+  }, '일수익 초기화 완료');
+}
+
+function resetMonth() {
+  if (!confirmResetAction('월수익 초기화', '이번 달 수익과 오늘 일수익이 모두 0원으로 초기화됩니다.')) {
+    return;
+  }
+
+  backupAndTransaction('월수익 초기화', function (data) {
+    if (!data) return data;
+
+    data.today = 0;
+    data.monthBase = 0;
+
+    return recompute(data);
+  }, '월수익 초기화 완료');
+}
+
+function resetYear() {
+  if (!confirmResetAction('연수익 초기화', '일수익, 월수익, 연수익이 모두 0원으로 초기화됩니다.')) {
+    return;
+  }
+
+  backupAndTransaction('연수익 초기화', function (data) {
+    if (!data) return data;
+
+    data.today = 0;
+    data.monthBase = 0;
+    data.yearBase = 0;
+
+    return recompute(data);
+  }, '연수익 초기화 완료');
+}
+
+/*
+  저장
+
+  핵심 수정 부분.
+
+  기존 문제:
+  일수익만 입력하고 저장했는데 월수익/연수익 칸이 0이면
+  monthBase = 0 - 일수익
+  yearBase = 0 - 일수익
+  형태가 되어 누적값이 꼬일 수 있었음.
+
+  수정:
+  - 일수익만 바꾼 경우: 기존 monthBase/yearBase 유지
+  - 월수익을 직접 바꾼 경우: monthBase = 입력한 월수익 - 오늘 일수익
+  - 연수익을 직접 바꾼 경우: yearBase = 입력한 연수익 - 오늘 일수익
+*/
+function saveData() {
+  var dailyV = toNum(document.getElementById('daily').value);
+  var weeklyV = toNum(document.getElementById('weekly').value);
+  var monthlyV = toNum(document.getElementById('monthly').value);
+
+  var dailyGoalV = toNum(document.getElementById('dailyGoal').value);
+  var monthGoalV = toNum(document.getElementById('monthGoal').value);
+  var yearGoalV = toNum(document.getElementById('yearGoal').value);
+
+  backupAndTransaction('저장', function (data) {
+    var c = dateParts();
+
+    if (!data) {
+      data = {
+        today: 0,
+        monthBase: 0,
+        yearBase: 0,
+        lastDay: c.day,
+        lastMonth: c.month,
+        lastYear: c.year
+      };
+    }
+
+    data = recompute(data);
+
+    var oldDisplayMonth = toNum(data.weekly);
+    var oldDisplayYear = toNum(data.monthly);
+
+    data.today = dailyV;
+
+    /*
+      월수익 칸을 사용자가 직접 수정했을 때만
+      monthBase를 새로 계산.
+      아니면 기존 누적값 유지.
+    */
+    if (weeklyV !== oldDisplayMonth) {
+      data.monthBase = weeklyV - dailyV;
+    } else {
+      data.monthBase = toNum(data.monthBase);
+    }
+
+    /*
+      연수익 칸을 사용자가 직접 수정했을 때만
+      yearBase를 새로 계산.
+      아니면 기존 누적값 유지.
+    */
+    if (monthlyV !== oldDisplayYear) {
+      data.yearBase = monthlyV - dailyV;
+    } else {
+      data.yearBase = toNum(data.yearBase);
+    }
+
+    data.dailyGoal = dailyGoalV;
+    data.monthGoal = monthGoalV;
+    data.yearGoal = yearGoalV;
+
+    data.lastDay = data.lastDay || c.day;
+    data.lastMonth = data.lastMonth || c.month;
+    data.lastYear = data.lastYear || c.year;
+
+    return recompute(data);
+  }, '저장 완료!');
+}
+
+bindMoneyInputs();
+
+rollover(function () {
+  db.ref('overlayData').on('value', function (snap) {
+    render(snap.val());
+  });
+});
+</script>
+
 </body>
 </html>
