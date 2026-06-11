@@ -252,17 +252,17 @@ button.restore:hover {
 <div class="card">
   <div class="muted" style="margin-bottom:8px">⚡ 빠른 수익 추가</div>
 
-<div class="quick-add">
-  <button onclick="addIncome(1000)">+1,000</button>
-  <button onclick="addIncome(3000)">+3,000</button>
-  <button onclick="addIncome(5000)">+5,000</button>
-  <button onclick="addIncome(8000)">+8,000</button>
-  <button onclick="addIncome(10000)">+10,000</button>
-  <button onclick="addIncome(12000)">+12,000</button>
-  <button onclick="addIncome(15000)">+15,000</button>
-  <button onclick="addIncome(50000)">+50,000</button>
-  <button onclick="addIncome(100000)">+100,000</button>
-</div>
+  <div class="quick-add">
+    <button onclick="addIncome(1000)">+1,000</button>
+    <button onclick="addIncome(3000)">+3,000</button>
+    <button onclick="addIncome(5000)">+5,000</button>
+    <button onclick="addIncome(8000)">+8,000</button>
+    <button onclick="addIncome(10000)">+10,000</button>
+    <button onclick="addIncome(12000)">+12,000</button>
+    <button onclick="addIncome(15000)">+15,000</button>
+    <button onclick="addIncome(50000)">+50,000</button>
+    <button onclick="addIncome(100000)">+100,000</button>
+  </div>
 
   <div class="quick-custom">
     <input id="quickAmount" type="text" inputmode="numeric" placeholder="직접 추가 금액">
@@ -271,6 +271,27 @@ button.restore:hover {
 
   <div class="muted" style="margin-top:6px">
     • 버튼이나 직접 추가 금액을 누르면 일수익에 바로 더해지고 자동 백업됩니다.
+  </div>
+</div>
+
+<div class="card">
+  <div class="muted" style="margin-bottom:8px">💸 세후 금액 계산기</div>
+
+  <div class="quick-custom">
+    <input id="grossIncome" type="text" inputmode="numeric" placeholder="세전 배달수익">
+    <button onclick="calcNetIncome()">계산</button>
+  </div>
+
+  <div class="goal-rate" style="margin-top:12px">
+    세전 금액: <b id="grossResult">-</b><br>
+    세금 5.5%: <b id="taxResult">-</b><br>
+    세후 금액: <b id="netResult">-</b>
+  </div>
+
+  <div class="muted" style="margin-top:6px">
+    • 입력한 금액에서 5.5%를 뺀 세후 금액만 표시합니다.<br>
+    • 일수익, 월수익, 연수익에는 자동으로 반영되지 않습니다.<br>
+    • 세후 금액을 확인한 뒤 필요한 경우 일수익에 직접 입력하세요.
   </div>
 </div>
 
@@ -311,6 +332,7 @@ button.restore:hover {
 
 <script>
 var noticeTimer = null;
+var TAX_RATE = 0.055;
 
 function showNotice(message, type) {
   var el = document.getElementById('notice');
@@ -363,7 +385,8 @@ function bindMoneyInputs() {
     'dailyGoal',
     'monthGoal',
     'yearGoal',
-    'quickAmount'
+    'quickAmount',
+    'grossIncome'
   ].forEach(function (id) {
     var el = document.getElementById(id);
     if (!el) return;
@@ -406,17 +429,6 @@ function dateParts() {
   };
 }
 
-/*
-  데이터 구조
-
-  today     = 오늘 일수익
-  monthBase = 오늘 수익을 제외한 이번 달 누적 수익
-  yearBase  = 오늘 수익을 제외한 올해 누적 수익
-
-  daily   = today
-  weekly  = monthBase + today
-  monthly = yearBase + today
-*/
 function recompute(data) {
   var today = toNum(data.today);
   var monthBase = toNum(data.monthBase);
@@ -433,15 +445,6 @@ function recompute(data) {
   return data;
 }
 
-/*
-  날짜가 바뀌었으면 이전 today를 누적에 합산.
-  예:
-  어제 today = 50,000
-  오늘 페이지 열면:
-  monthBase += 50,000
-  yearBase += 50,000
-  today = 0
-*/
 function rollover(cb) {
   var cur = dateParts();
 
@@ -627,6 +630,35 @@ function addCustomIncome() {
   if (el) el.value = '';
 }
 
+function netAfterTax(amount) {
+  amount = toNum(amount);
+  return Math.round(amount * (1 - TAX_RATE));
+}
+
+function taxOnly(amount) {
+  amount = toNum(amount);
+  return amount - netAfterTax(amount);
+}
+
+function calcNetIncome() {
+  var el = document.getElementById('grossIncome');
+  var gross = toNum(el ? el.value : 0);
+
+  if (gross <= 0) {
+    document.getElementById('grossResult').innerText = '-';
+    document.getElementById('taxResult').innerText = '-';
+    document.getElementById('netResult').innerText = '-';
+    return;
+  }
+
+  var tax = taxOnly(gross);
+  var net = netAfterTax(gross);
+
+  document.getElementById('grossResult').innerText = won(gross);
+  document.getElementById('taxResult').innerText = won(tax);
+  document.getElementById('netResult').innerText = won(net);
+}
+
 function confirmResetAction(title, detail) {
   var input = prompt(
     title + '\n' +
@@ -644,27 +676,6 @@ function confirmResetAction(title, detail) {
   return true;
 }
 
-/*
-  하루 마무리
-
-  today를 monthBase와 yearBase에 더한 뒤
-  today를 0으로 초기화.
-
-  예:
-  today = 50,000
-  monthBase = 100,000
-  yearBase = 500,000
-
-  하루 마무리 후:
-  today = 0
-  monthBase = 150,000
-  yearBase = 550,000
-
-  표시값:
-  daily = 0
-  weekly = 150,000
-  monthly = 550,000
-*/
 function closeDay() {
   if (!confirm('하루 마무리를 진행할까요?\n오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.')) {
     return;
@@ -740,22 +751,6 @@ function resetYear() {
   }, '연수익 초기화 완료');
 }
 
-/*
-  저장
-
-  핵심 수정 부분.
-
-  기존 문제:
-  일수익만 입력하고 저장했는데 월수익/연수익 칸이 0이면
-  monthBase = 0 - 일수익
-  yearBase = 0 - 일수익
-  형태가 되어 누적값이 꼬일 수 있었음.
-
-  수정:
-  - 일수익만 바꾼 경우: 기존 monthBase/yearBase 유지
-  - 월수익을 직접 바꾼 경우: monthBase = 입력한 월수익 - 오늘 일수익
-  - 연수익을 직접 바꾼 경우: yearBase = 입력한 연수익 - 오늘 일수익
-*/
 function saveData() {
   var dailyV = toNum(document.getElementById('daily').value);
   var weeklyV = toNum(document.getElementById('weekly').value);
@@ -786,22 +781,12 @@ function saveData() {
 
     data.today = dailyV;
 
-    /*
-      월수익 칸을 사용자가 직접 수정했을 때만
-      monthBase를 새로 계산.
-      아니면 기존 누적값 유지.
-    */
     if (weeklyV !== oldDisplayMonth) {
       data.monthBase = weeklyV - dailyV;
     } else {
       data.monthBase = toNum(data.monthBase);
     }
 
-    /*
-      연수익 칸을 사용자가 직접 수정했을 때만
-      yearBase를 새로 계산.
-      아니면 기존 누적값 유지.
-    */
     if (monthlyV !== oldDisplayYear) {
       data.yearBase = monthlyV - dailyV;
     } else {
@@ -821,6 +806,18 @@ function saveData() {
 }
 
 bindMoneyInputs();
+
+var grossInput = document.getElementById('grossIncome');
+
+if (grossInput) {
+  grossInput.addEventListener('input', function () {
+    calcNetIncome();
+  });
+
+  grossInput.addEventListener('blur', function () {
+    calcNetIncome();
+  });
+}
 
 rollover(function () {
   db.ref('overlayData').on('value', function (snap) {
