@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>수익 정산 (가계부)</title>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="firebase.js"></script>
+
+<style>
+  body { font-family: 'Noto Sans KR', sans-serif; background: #222; color: #fff; padding: 16px; max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 20px; text-align: center; }
+  h2 { font-size: 16px; margin: 22px 0 8px; color: #ffd166; }
+  .cards { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 14px 0; }
+  .card { background: #2c2c2c; border-radius: 10px; padding: 14px 18px; min-width: 150px; text-align: center; flex: 1; }
+  .card .label { font-size: 13px; color: #bbb; }
+  .card .val { font-size: 20px; font-weight: 700; margin-top: 4px; }
+  .card .net { font-size: 13px; color: #ffd166; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 8px 6px; border-bottom: 1px solid #3a3a3a; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: #cfcfcf; }
+  .del { background: #b33939; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
+  .addbox { background: #2c2c2c; border-radius: 10px; padding: 14px; margin: 14px 0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  .addbox input { padding: 8px; border-radius: 6px; border: none; font-size: 15px; text-align: right; }
+  .addbox button { background: #8e44ad; color: #fff; border: none; border-radius: 6px; padding: 9px 16px; font-size: 14px; cursor: pointer; }
+  .muted { color: #888; font-size: 12px; text-align: center; margin-top: 6px; }
+</style>
+</head>
+
+<body>
+<h1>💰 수익 정산 (가계부)</h1>
+
+<div class="cards">
+  <div class="card"><div class="label">오늘</div><div class="val" id="todayG">0원</div><div class="net" id="todayN">세후 -</div></div>
+  <div class="card"><div class="label">이번 달</div><div class="val" id="monthG">0원</div><div class="net" id="monthN">세후 -</div></div>
+  <div class="card"><div class="label">올해</div><div class="val" id="yearG">0원</div><div class="net" id="yearN">세후 -</div></div>
+</div>
+
+<div class="addbox">
+  <input id="manualDate" type="date">
+  <input id="manualGross" type="text" inputmode="numeric" placeholder="세전 금액">
+  <button onclick="manualAdd()">기록 추가/수정</button>
+</div>
+<div class="muted">과거 날짜의 수익을 직접 채워 넣거나 특정 날짜 기록을 수정할 수 있어요.</div>
+
+<h2>📅 일별 기록</h2>
+<table>
+  <thead><tr><th>날짜</th><th>세전</th><th>세후</th><th></th></tr></thead>
+  <tbody id="dailyBody"></tbody>
+</table>
+
+<h2>🗓️ 월별 합계</h2>
+<table>
+  <thead><tr><th>월</th><th>세전</th><th>세후</th></tr></thead>
+  <tbody id="monthBody"></tbody>
+</table>
+
+<h2>📈 연별 합계</h2>
+<table>
+  <thead><tr><th>연도</th><th>세전</th><th>세후</th></tr></thead>
+  <tbody id="yearBody"></tbody>
+</table>
+
+<div class="muted">이 페이지는 history 기록을 읽어 자동으로 정산합니다.</div>
+
+<script>
+var TAX_RATE = 0.055;
+function toNum(v){ var n = parseInt(String(v).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
+function won(n){ return toNum(n).toLocaleString() + '원'; }
+function netOf(g){ return Math.round(toNum(g) * (1 - TAX_RATE)); }
+
+function nowParts(){
+  var n = new Date();
+  var y = n.getFullYear();
+  var m = String(n.getMonth()+1).padStart(2,'0');
+  var d = String(n.getDate()).padStart(2,'0');
+  return { day: y+'-'+m+'-'+d, month: y+'-'+m, year: String(y) };
+}
+
+function deleteDay(day){
+  if(!confirm(day + ' 기록을 삭제할까요?')) return;
+  db.ref('history/' + day).remove();
+}
+
+function manualAdd(){
+  var day = document.getElementById('manualDate').value;
+  var gross = toNum(document.getElementById('manualGross').value);
+  if(!day){ alert('날짜를 선택하세요.'); return; }
+  if(gross < 0){ alert('금액을 확인하세요.'); return; }
+  db.ref('history/' + day).set({
+    gross: gross,
+    net: netOf(gross),
+    updatedAt: new Date().toISOString()
+  });
+  document.getElementById('manualGross').value = '';
+}
+
+function render(data){
+  data = data || {};
+  var days = Object.keys(data).sort().reverse();
+  var cur = nowParts();
+
+  var todayG = 0, monthG = 0, yearG = 0;
+  var monthMap = {}, yearMap = {};
+  var dailyRows = '';
+
+  days.forEach(function(day){
+    var g = toNum(data[day].gross);
+    var n = data[day].net != null ? toNum(data[day].net) : netOf(g);
+
+    if(day === cur.day) todayG += g;
+    if(day.indexOf(cur.month) === 0) monthG += g;
+    if(day.indexOf(cur.year) === 0) yearG += g;
+
+    var mKey = day.slice(0,7);
+    var yKey = day.slice(0,4);
+    monthMap[mKey] = (monthMap[mKey]||0) + g;
+    yearMap[yKey]  = (yearMap[yKey]||0) + g;
+
+    dailyRows += '<tr><td>'+day+'</td><td>'+won(g)+'</td><td>'+won(n)+
+      '</td><td><button class="del" onclick="deleteDay(\''+day+'\')">삭제</button></td></tr>';
+  });
+
+  document.getElementById('todayG').innerText = won(todayG);
+  document.getElementById('todayN').innerText = '세후 ' + won(netOf(todayG));
+  document.getElementById('monthG').innerText = won(monthG);
+  document.getElementById('monthN').innerText = '세후 ' + won(netOf(monthG));
+  document.getElementById('yearG').innerText = won(yearG);
+  document.getElementById('yearN').innerText = '세후 ' + won(netOf(yearG));
+
+  document.getElementById('dailyBody').innerHTML =
+    dailyRows || '<tr><td colspan="4" style="text-align:center;color:#888">기록이 없습니다.</td></tr>';
+
+  document.getElementById('monthBody').innerHTML =
+    Object.keys(monthMap).sort().reverse().map(function(m){
+      return '<tr><td>'+m+'</td><td>'+won(monthMap[m])+'</td><td>'+won(netOf(monthMap[m]))+'</td></tr>';
+    }).join('') || '<tr><td colspan="3" style="text-align:center;color:#888">-</td></tr>';
+
+  document.getElementById('yearBody').innerHTML =
+    Object.keys(yearMap).sort().reverse().map(function(y){
+      return '<tr><td>'+y+'</td><td>'+won(yearMap[y])+'</td><td>'+won(netOf(yearMap[y]))+'</td></tr>';
+    }).join('') || '<tr><td colspan="3" style="text-align:center;color:#888">-</td></tr>';
+}
+
+db.ref('history').on('value', function(snap){ render(snap.val()); });
+</script>
+</body>
+</html>
