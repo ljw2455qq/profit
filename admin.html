@@ -7,6 +7,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="firebase.js"></script>
 
 <style>
@@ -42,6 +43,8 @@ a.reportlink:hover { background: #138d75; }
 .quick-custom input { width: 150px; margin: 0; font-size: 16px; }
 .quick-custom button { background: #8e44ad; padding: 10px 18px; font-size: 15px; }
 .quick-custom button:hover { background: #7d3c98; }
+#authGate { position: fixed; inset: 0; background: #222; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; z-index: 9999; }
+#authGate input { width: 220px; text-align: left; font-size: 16px; }
 @media (max-width: 560px) {
 .card { max-width: 440px; }
 .net-preview { display: block; margin: 4px 0 0 96px; text-align: left; }
@@ -50,6 +53,14 @@ a.reportlink:hover { background: #138d75; }
 </head>
 
 <body>
+
+<div id="authGate">
+<div style="color:#fff;font-weight:700;font-size:18px;">🔒 로그인</div>
+<input id="authEmail" type="email" placeholder="이메일">
+<input id="authPw" type="password" placeholder="비밀번호">
+<button onclick="doLogin()">로그인</button>
+<div id="authMsg" style="color:#ff6b6b;font-size:13px;"></div>
+</div>
 
 <h1>OBS 오버레이 수익 입력</h1>
 
@@ -99,7 +110,7 @@ a.reportlink:hover { background: #138d75; }
 
 <div class="muted">
 • 평소엔 <b>일수익</b>만 입력하면 됩니다. 저장하면 월·연 표시값에 자동 반영됩니다.<br>
-• <b>하루 마무리</b>를 누르면 오늘 수익이 월·연 누적값에 반영되고 일수익은 0원이 됩니다.<br>
+• <b>하루 마무리</b>를 누르면 오늘 수익이 월·연 누적값에 반영되고, 가계부에도 기록된 뒤 일수익은 0원이 됩니다.<br>
 • 월수익·연수익을 직접 고쳐서 저장하면 그 값이 적용되고, 그 값부터 다시 자동 합산됩니다.<br>
 • 입력칸 오른쪽의 <b>세후 금액</b>은 5.5% 차감 표시용입니다. 실제 저장값은 바뀌지 않습니다.<br>
 • <b>일·월·연 목표</b>를 입력하면 오버레이에 달성률(%)이 표시됩니다. 비워두면 표시 안 함.
@@ -193,6 +204,7 @@ a.reportlink:hover { background: #138d75; }
 <script>
 var noticeTimer = null;
 var TAX_RATE = 0.055;
+var appStarted = false;
 
 function showNotice(message, type) {
   var el = document.getElementById('notice');
@@ -226,9 +238,7 @@ function taxOnly(amount) {
   return amount - netAfterTax(amount);
 }
 
-/* === 가계부(history) 기록용 추가 함수 === */
-
-// 수익을 더할 때마다 오늘 날짜 기록에 누적
+/* === 가계부(history) 기록용 === */
 function addToHistory(amount) {
   amount = toNum(amount);
   if (amount === 0) return;
@@ -242,7 +252,6 @@ function addToHistory(amount) {
   });
 }
 
-// 오늘 날짜 기록을 특정 값으로 덮어쓰기 (직접 저장/초기화용)
 function setTodayHistory(grossValue) {
   grossValue = toNum(grossValue);
   var day = dateParts().day;
@@ -257,10 +266,7 @@ function setNetPreview(id, amount) {
   var el = document.getElementById(id);
   if (!el) return;
   amount = toNum(amount);
-  if (amount <= 0) {
-    el.innerText = '세후 -';
-    return;
-  }
+  if (amount <= 0) { el.innerText = '세후 -'; return; }
   el.innerText = '세후 ' + won(netAfterTax(amount));
 }
 
@@ -276,11 +282,7 @@ function updateNetPreviews() {
 function formatMoneyInput(el) {
   if (!el) return;
   var raw = String(el.value || '');
-  if (raw.trim() === '') {
-    el.value = '';
-    updateNetPreviews();
-    return;
-  }
+  if (raw.trim() === '') { el.value = ''; updateNetPreviews(); return; }
   el.value = comma(raw);
   updateNetPreviews();
 }
@@ -339,27 +341,19 @@ function rollover(cb) {
     var monthBase = toNum(data.monthBase);
     var yearBase = toNum(data.yearBase);
     if (!data.lastDay) {
-      data.lastDay = cur.day;
-      data.lastMonth = cur.month;
-      data.lastYear = cur.year;
+      data.lastDay = cur.day; data.lastMonth = cur.month; data.lastYear = cur.year;
       return recompute(data);
     }
     if (data.lastDay !== cur.day) {
       yearBase = data.lastYear === cur.year ? yearBase + today : 0;
       monthBase = data.lastMonth === cur.month ? monthBase + today : 0;
       today = 0;
-      data.today = today;
-      data.monthBase = monthBase;
-      data.yearBase = yearBase;
-      data.lastDay = cur.day;
-      data.lastMonth = cur.month;
-      data.lastYear = cur.year;
+      data.today = today; data.monthBase = monthBase; data.yearBase = yearBase;
+      data.lastDay = cur.day; data.lastMonth = cur.month; data.lastYear = cur.year;
       return recompute(data);
     }
     return recompute(data);
-  }, function () {
-    if (cb) cb();
-  });
+  }, function () { if (cb) cb(); });
 }
 
 function backupAndTransaction(actionName, updater, successMsg) {
@@ -380,15 +374,10 @@ function backupAndTransaction(actionName, updater, successMsg) {
 function restoreBackup() {
   db.ref('overlayDataBackup').once('value').then(function (snap) {
     var backup = snap.val();
-    if (!backup) {
-      showNotice('복구할 백업이 없습니다.', 'error');
-      return;
-    }
+    if (!backup) { showNotice('복구할 백업이 없습니다.', 'error'); return; }
     var backupAt = backup.backupAt || '-';
     var backupAction = backup.backupAction || '이전 작업';
-    if (!confirm('직전 값을 복구할까요?\n백업 시점: ' + backupAt + '\n백업 작업: ' + backupAction)) {
-      return;
-    }
+    if (!confirm('직전 값을 복구할까요?\n백업 시점: ' + backupAt + '\n백업 작업: ' + backupAction)) return;
     delete backup.backupAt;
     delete backup.backupAction;
     backup = recompute(backup);
@@ -420,33 +409,24 @@ function render(data) {
 function fill(id, val) {
   var el = document.getElementById(id);
   if (!el) return;
-  if (document.activeElement !== el) {
-    el.value = comma(val);
-  }
+  if (document.activeElement !== el) el.value = comma(val);
 }
 
 function fillGoal(id, val) {
   var el = document.getElementById(id);
   if (!el) return;
-  if (document.activeElement !== el) {
-    el.value = val > 0 ? comma(val) : '';
-  }
+  if (document.activeElement !== el) el.value = val > 0 ? comma(val) : '';
 }
 
 function addIncome(amount) {
   amount = toNum(amount);
-  if (amount <= 0) {
-    showNotice('추가할 금액을 입력해 주세요.', 'error');
-    return;
-  }
+  if (amount <= 0) { showNotice('추가할 금액을 입력해 주세요.', 'error'); return; }
 
-  addToHistory(amount); /* ← 가계부 누적 */
+  addToHistory(amount); /* 가계부 누적 */
 
   backupAndTransaction('빠른 수익 추가', function (data) {
     var c = dateParts();
-    if (!data) {
-      data = { today: 0, monthBase: 0, yearBase: 0, lastDay: c.day, lastMonth: c.month, lastYear: c.year };
-    }
+    if (!data) data = { today: 0, monthBase: 0, yearBase: 0, lastDay: c.day, lastMonth: c.month, lastYear: c.year };
     data.today = toNum(data.today) + amount;
     data.lastDay = data.lastDay || c.day;
     data.lastMonth = data.lastMonth || c.month;
@@ -458,10 +438,7 @@ function addIncome(amount) {
 function addCustomIncome() {
   var el = document.getElementById('quickAmount');
   var amount = toNum(el ? el.value : 0);
-  if (amount <= 0) {
-    showNotice('직접 추가할 금액을 입력해 주세요.', 'error');
-    return;
-  }
+  if (amount <= 0) { showNotice('직접 추가할 금액을 입력해 주세요.', 'error'); return; }
   addIncome(amount);
   if (el) el.value = '';
 }
@@ -475,11 +452,9 @@ function calcNetIncome() {
     document.getElementById('netResult').innerText = '-';
     return;
   }
-  var tax = taxOnly(gross);
-  var net = netAfterTax(gross);
   document.getElementById('grossResult').innerText = won(gross);
-  document.getElementById('taxResult').innerText = won(tax);
-  document.getElementById('netResult').innerText = won(net);
+  document.getElementById('taxResult').innerText = won(taxOnly(gross));
+  document.getElementById('netResult').innerText = won(netAfterTax(gross));
 }
 
 function confirmResetAction(title, detail) {
@@ -493,16 +468,14 @@ function confirmResetAction(title, detail) {
 }
 
 function closeDay() {
-  if (!confirm('하루 마무리를 진행할까요?\n오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.')) {
-    return;
-  }
+  if (!confirm('하루 마무리를 진행할까요?\n오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.')) return;
   var cur = dateParts();
 
   // 마무리 전에 오늘 번 금액을 가계부(history)에 확정 기록
   db.ref('overlayData').once('value').then(function (snap) {
     var d = snap.val() || {};
     var grossToday = toNum(d.today);
-    var recordDay = d.lastDay || cur.day; // 오늘 수익이 속한 날짜
+    var recordDay = d.lastDay || cur.day;
     if (grossToday > 0) {
       db.ref('history/' + recordDay).set({
         gross: grossToday,
@@ -513,54 +486,40 @@ function closeDay() {
   });
 
   backupAndTransaction('하루 마무리', function (data) {
-    if (!data) {
-      data = { today: 0, monthBase: 0, yearBase: 0 };
-    }
+    if (!data) data = { today: 0, monthBase: 0, yearBase: 0 };
     var today = toNum(data.today);
     data.monthBase = toNum(data.monthBase) + today;
     data.yearBase = toNum(data.yearBase) + today;
     data.today = 0;
-    data.lastDay = cur.day;
-    data.lastMonth = cur.month;
-    data.lastYear = cur.year;
+    data.lastDay = cur.day; data.lastMonth = cur.month; data.lastYear = cur.year;
     return recompute(data);
   }, '하루 마무리 완료');
 }
 
 function resetDaily() {
-  if (!confirmResetAction('일수익 초기화', '오늘 일수익만 0원으로 초기화됩니다.')) {
-    return;
-  }
+  if (!confirmResetAction('일수익 초기화', '오늘 일수익만 0원으로 초기화됩니다.')) return;
   backupAndTransaction('일수익 초기화', function (data) {
     if (!data) return data;
     data.today = 0;
     return recompute(data);
   }, '일수익 초기화 완료');
-
-  setTodayHistory(0); /* ← 오늘 가계부 기록도 0 */
+  setTodayHistory(0); /* 오늘 가계부 기록도 0 */
 }
 
 function resetMonth() {
-  if (!confirmResetAction('월수익 초기화', '이번 달 수익과 오늘 일수익이 모두 0원으로 초기화됩니다.')) {
-    return;
-  }
+  if (!confirmResetAction('월수익 초기화', '이번 달 수익과 오늘 일수익이 모두 0원으로 초기화됩니다.')) return;
   backupAndTransaction('월수익 초기화', function (data) {
     if (!data) return data;
-    data.today = 0;
-    data.monthBase = 0;
+    data.today = 0; data.monthBase = 0;
     return recompute(data);
   }, '월수익 초기화 완료');
 }
 
 function resetYear() {
-  if (!confirmResetAction('연수익 초기화', '일수익, 월수익, 연수익이 모두 0원으로 초기화됩니다.')) {
-    return;
-  }
+  if (!confirmResetAction('연수익 초기화', '일수익, 월수익, 연수익이 모두 0원으로 초기화됩니다.')) return;
   backupAndTransaction('연수익 초기화', function (data) {
     if (!data) return data;
-    data.today = 0;
-    data.monthBase = 0;
-    data.yearBase = 0;
+    data.today = 0; data.monthBase = 0; data.yearBase = 0;
     return recompute(data);
   }, '연수익 초기화 완료');
 }
@@ -575,23 +534,13 @@ function saveData() {
 
   backupAndTransaction('저장', function (data) {
     var c = dateParts();
-    if (!data) {
-      data = { today: 0, monthBase: 0, yearBase: 0, lastDay: c.day, lastMonth: c.month, lastYear: c.year };
-    }
+    if (!data) data = { today: 0, monthBase: 0, yearBase: 0, lastDay: c.day, lastMonth: c.month, lastYear: c.year };
     data = recompute(data);
     var oldDisplayMonth = toNum(data.weekly);
     var oldDisplayYear = toNum(data.monthly);
     data.today = dailyV;
-    if (weeklyV !== oldDisplayMonth) {
-      data.monthBase = weeklyV - dailyV;
-    } else {
-      data.monthBase = toNum(data.monthBase);
-    }
-    if (monthlyV !== oldDisplayYear) {
-      data.yearBase = monthlyV - dailyV;
-    } else {
-      data.yearBase = toNum(data.yearBase);
-    }
+    data.monthBase = (weeklyV !== oldDisplayMonth) ? (weeklyV - dailyV) : toNum(data.monthBase);
+    data.yearBase = (monthlyV !== oldDisplayYear) ? (monthlyV - dailyV) : toNum(data.yearBase);
     data.dailyGoal = dailyGoalV;
     data.monthGoal = monthGoalV;
     data.yearGoal = yearGoalV;
@@ -601,7 +550,25 @@ function saveData() {
     return recompute(data);
   }, '저장 완료!');
 
-  setTodayHistory(dailyV); /* ← 일수익 입력값을 오늘 가계부 기록으로 저장 */
+  setTodayHistory(dailyV); /* 일수익 입력값을 오늘 가계부 기록으로 저장 */
+}
+
+/* === 로그인 / 앱 시작 === */
+function doLogin() {
+  firebase.auth().signInWithEmailAndPassword(
+    document.getElementById('authEmail').value,
+    document.getElementById('authPw').value
+  ).catch(function (e) {
+    document.getElementById('authMsg').innerText = '로그인 실패: ' + e.message;
+  });
+}
+
+function initApp() {
+  if (appStarted) return;
+  appStarted = true;
+  rollover(function () {
+    db.ref('overlayData').on('value', function (snap) { render(snap.val()); });
+  });
 }
 
 bindMoneyInputs();
@@ -612,10 +579,13 @@ if (grossInput) {
   grossInput.addEventListener('blur', function () { calcNetIncome(); });
 }
 
-rollover(function () {
-  db.ref('overlayData').on('value', function (snap) {
-    render(snap.val());
-  });
+firebase.auth().onAuthStateChanged(function (user) {
+  if (user) {
+    document.getElementById('authGate').style.display = 'none';
+    initApp();
+  } else {
+    document.getElementById('authGate').style.display = 'flex';
+  }
 });
 </script>
 
