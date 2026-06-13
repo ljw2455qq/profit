@@ -497,6 +497,21 @@ function closeDay() {
     return;
   }
   var cur = dateParts();
+
+  // 마무리 전에 오늘 번 금액을 가계부(history)에 확정 기록
+  db.ref('overlayData').once('value').then(function (snap) {
+    var d = snap.val() || {};
+    var grossToday = toNum(d.today);
+    var recordDay = d.lastDay || cur.day; // 오늘 수익이 속한 날짜
+    if (grossToday > 0) {
+      db.ref('history/' + recordDay).set({
+        gross: grossToday,
+        net: netAfterTax(grossToday),
+        updatedAt: new Date().toISOString()
+      });
+    }
+  });
+
   backupAndTransaction('하루 마무리', function (data) {
     if (!data) {
       data = { today: 0, monthBase: 0, yearBase: 0 };
