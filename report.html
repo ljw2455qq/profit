@@ -7,6 +7,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="firebase.js"></script>
 
 <style>
@@ -27,10 +28,22 @@
   .addbox input { padding: 8px; border-radius: 6px; border: none; font-size: 15px; text-align: right; }
   .addbox button { background: #8e44ad; color: #fff; border: none; border-radius: 6px; padding: 9px 16px; font-size: 14px; cursor: pointer; }
   .muted { color: #888; font-size: 12px; text-align: center; margin-top: 6px; }
+  #authGate { position: fixed; inset: 0; background: #222; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; z-index: 9999; }
+  #authGate input { width: 220px; padding: 10px; border-radius: 6px; border: none; font-size: 16px; }
+  #authGate button { background: #4CAF50; color: #fff; border: none; border-radius: 6px; padding: 10px 20px; cursor: pointer; }
 </style>
 </head>
 
 <body>
+
+<div id="authGate">
+<div style="font-weight:700;font-size:18px;">🔒 로그인</div>
+<input id="authEmail" type="email" placeholder="이메일">
+<input id="authPw" type="password" placeholder="비밀번호">
+<button onclick="doLogin()">로그인</button>
+<div id="authMsg" style="color:#ff6b6b;font-size:13px;"></div>
+</div>
+
 <h1>💰 수익 정산 (가계부)</h1>
 
 <div class="cards">
@@ -68,6 +81,8 @@
 
 <script>
 var TAX_RATE = 0.055;
+var appStarted = false;
+
 function toNum(v){ var n = parseInt(String(v).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
 function won(n){ return toNum(n).toLocaleString() + '원'; }
 function netOf(g){ return Math.round(toNum(g) * (1 - TAX_RATE)); }
@@ -145,7 +160,28 @@ function render(data){
     }).join('') || '<tr><td colspan="3" style="text-align:center;color:#888">-</td></tr>';
 }
 
-db.ref('history').on('value', function(snap){ render(snap.val()); });
+/* === 로그인 / 앱 시작 === */
+function doLogin(){
+  firebase.auth().signInWithEmailAndPassword(
+    document.getElementById('authEmail').value,
+    document.getElementById('authPw').value
+  ).catch(function(e){ document.getElementById('authMsg').innerText = '로그인 실패: ' + e.message; });
+}
+
+function initApp(){
+  if (appStarted) return;
+  appStarted = true;
+  db.ref('history').on('value', function(snap){ render(snap.val()); });
+}
+
+firebase.auth().onAuthStateChanged(function(user){
+  if (user) {
+    document.getElementById('authGate').style.display = 'none';
+    initApp();
+  } else {
+    document.getElementById('authGate').style.display = 'flex';
+  }
+});
 </script>
 </body>
 </html>
