@@ -44,7 +44,7 @@
   <input id="manualGross" type="text" inputmode="numeric" placeholder="세전 금액">
   <button onclick="manualAdd()">기록 추가/수정</button>
 </div>
-<div class="muted">과거 날짜의 수익을 직접 채워 넣거나 특정 날짜 기록을 수정할 수 있어요.</div>
+<div class="muted">과거 날짜의 수익을 직접 채워 넣거나 특정 날짜 기록을 수정할 수 있어요. (세후는 자동 계산)</div>
 
 <h2>📅 일별 기록</h2>
 <table>
@@ -52,19 +52,19 @@
   <tbody id="dailyBody"></tbody>
 </table>
 
-<h2>🗓️ 월별 합계</h2>
+<h2>🗓️ 월별 기록</h2>
 <table>
   <thead><tr><th>월</th><th>세전</th><th>세후</th></tr></thead>
   <tbody id="monthBody"></tbody>
 </table>
 
-<h2>📈 연별 합계</h2>
+<h2>📈 연별 기록</h2>
 <table>
   <thead><tr><th>연도</th><th>세전</th><th>세후</th></tr></thead>
   <tbody id="yearBody"></tbody>
 </table>
 
-<div class="muted">이 페이지는 history 기록을 읽어 자동으로 정산합니다.</div>
+<div class="muted">관리 페이지에서 수익을 입력하면 이 페이지에 날짜별 세전·세후가 자동으로 기록·정산됩니다.</div>
 
 <script>
 var TAX_RATE = 0.055;
