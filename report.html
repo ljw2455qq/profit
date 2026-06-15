@@ -29,7 +29,7 @@
   .del { background: #b33939; color: #fff; border: none; border-radius: 5px; padding: 5px 9px; cursor: pointer; font-size: 12px; }
   .del:hover { background: #922b2b; }
   .ovtag { background: #8e44ad; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: middle; }
-  .addbox { background: #2c2c2c; border-radius: 10px; padding: 14px; margin: 14px 0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  .addbox { background: #2c2c2c; border-radius: 10px; padding: 12px; margin: 10px 0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
   .addbox input { padding: 8px; border-radius: 6px; border: none; font-size: 15px; text-align: right; }
   .addbox button { background: #8e44ad; color: #fff; border: none; border-radius: 6px; padding: 9px 16px; font-size: 14px; cursor: pointer; }
   .muted { color: #888; font-size: 12px; text-align: center; margin-top: 6px; }
@@ -62,28 +62,37 @@
   <input id="manualGross" type="text" inputmode="numeric" placeholder="세전 금액">
   <button onclick="manualAdd()">날짜별 기록 추가/수정</button>
 </div>
-<div class="muted">과거 날짜의 수익을 새로 추가하거나, 아래 표에서 각 칸을 직접 고쳐 저장할 수 있어요. (세후는 자동 계산)</div>
+<div class="muted">표의 각 칸을 직접 고쳐 저장할 수 있어요. (세후는 자동 계산)</div>
 
 <h2>📅 일별 기록</h2>
 <table>
   <thead><tr><th>날짜</th><th>세전(수정)</th><th>세후</th><th>관리</th></tr></thead>
   <tbody id="dailyBody"></tbody>
 </table>
-<div class="muted">세전 칸을 고치고 "저장", 필요 없는 날은 "삭제".</div>
 
 <h2>🗓️ 월별 기록</h2>
 <table>
   <thead><tr><th>월</th><th>세전(수정)</th><th>세후</th><th>관리</th></tr></thead>
   <tbody id="monthBody"></tbody>
 </table>
-<div class="muted">월 값을 직접 입력해 "저장"하면 일별 합계 대신 그 값이 표시됩니다. "합계복원"으로 되돌리기.</div>
+<div class="addbox">
+  <input id="addMonth" type="month">
+  <input id="addMonthGross" type="text" inputmode="numeric" placeholder="세전 금액">
+  <button onclick="addMonthRecord()">월 기록 추가/수정</button>
+</div>
+<div class="muted">올해 1월~이번 달이 모두 표시됩니다. 칸에 금액을 입력해 "저장"하면 그 달 기록이 됩니다. "합계복원"으로 일별 합계로 되돌리기.</div>
 
 <h2>📈 연별 기록</h2>
 <table>
   <thead><tr><th>연도</th><th>세전(수정)</th><th>세후</th><th>관리</th></tr></thead>
   <tbody id="yearBody"></tbody>
 </table>
-<div class="muted">연 값도 직접 입력해 "저장"하거나 "합계복원"으로 일별 합계로 되돌릴 수 있어요.</div>
+<div class="addbox">
+  <input id="addYear" type="number" placeholder="연도 (예: 2025)">
+  <input id="addYearGross" type="text" inputmode="numeric" placeholder="세전 금액">
+  <button onclick="addYearRecord()">연 기록 추가/수정</button>
+</div>
+<div class="muted">최근 3개 연도가 표시됩니다. 2025년 등 칸에 금액을 입력해 "저장"하세요. "합계복원"으로 일별 합계로 되돌리기.</div>
 
 <script>
 var TAX_RATE = 0.055;
@@ -123,6 +132,14 @@ function clearMonth(m){
   if(!confirm(m + ' 월 수정값을 지우고 일별 합계로 되돌릴까요?')) return;
   db.ref('history/override_month/' + m).remove();
 }
+function addMonthRecord(){
+  var m = document.getElementById('addMonth').value; // "2026-05"
+  var v = toNum(document.getElementById('addMonthGross').value);
+  if(!m){ alert('월을 선택하세요.'); return; }
+  if(v < 0){ alert('금액을 확인하세요.'); return; }
+  db.ref('history/override_month/' + m).set({ gross: v, net: netOf(v), updatedAt: new Date().toISOString() });
+  document.getElementById('addMonthGross').value = '';
+}
 
 /* === 연별 수정(덮어쓰기) === */
 function saveYear(y){
@@ -133,6 +150,14 @@ function saveYear(y){
 function clearYear(y){
   if(!confirm(y + '년 수정값을 지우고 일별 합계로 되돌릴까요?')) return;
   db.ref('history/override_year/' + y).remove();
+}
+function addYearRecord(){
+  var y = String(document.getElementById('addYear').value).trim();
+  var v = toNum(document.getElementById('addYearGross').value);
+  if(!/^\d{4}$/.test(y)){ alert('연도를 4자리로 입력하세요. 예: 2025'); return; }
+  if(v < 0){ alert('금액을 확인하세요.'); return; }
+  db.ref('history/override_year/' + y).set({ gross: v, net: netOf(v), updatedAt: new Date().toISOString() });
+  document.getElementById('addYearGross').value = '';
 }
 
 /* === 과거 날짜 직접 추가 === */
@@ -150,6 +175,8 @@ function render(data){
   var monthOv = data.override_month || {};
   var yearOv  = data.override_year  || {};
   var cur = nowParts();
+  var curY = parseInt(cur.year, 10);
+  var curM = parseInt(cur.month.slice(5), 10);
 
   var dayKeys = Object.keys(data).filter(isDay).sort().reverse();
 
@@ -192,8 +219,9 @@ function render(data){
   document.getElementById('dailyBody').innerHTML =
     dailyRows || '<tr><td colspan="4" style="text-align:center;color:#888">기록이 없습니다.</td></tr>';
 
-  /* 월별: 일별 합계 + 덮어쓰기 키 합집합 */
+  /* 월별: 올해 1월~이번 달 기본 + 일별 합계 + 덮어쓰기 합집합 */
   var monthSet = {};
+  for(var mm = 1; mm <= curM; mm++){ monthSet[cur.year + '-' + String(mm).padStart(2,'0')] = true; }
   Object.keys(monthMap).forEach(function(m){ monthSet[m]=true; });
   Object.keys(monthOv).forEach(function(m){ monthSet[m]=true; });
   var monthRows = Object.keys(monthSet).sort().reverse().map(function(m){
@@ -209,8 +237,9 @@ function render(data){
   document.getElementById('monthBody').innerHTML =
     monthRows || '<tr><td colspan="4" style="text-align:center;color:#888">-</td></tr>';
 
-  /* 연별: 일별 합계 + 덮어쓰기 키 합집합 */
+  /* 연별: 최근 3개 연도 기본 + 일별 합계 + 덮어쓰기 합집합 */
   var yearSet = {};
+  for(var yy = curY - 2; yy <= curY; yy++){ yearSet[String(yy)] = true; }
   Object.keys(yearMap).forEach(function(y){ yearSet[y]=true; });
   Object.keys(yearOv).forEach(function(y){ yearSet[y]=true; });
   var yearRows = Object.keys(yearSet).sort().reverse().map(function(y){
