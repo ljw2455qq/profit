@@ -22,8 +22,6 @@ button.reset { background: #c0392b; margin: 4px; font-size: 15px; padding: 10px 
 button.reset:hover { background: #a93226; }
 button.dayend { background: #f39c12; color: #211400; font-weight: 700; margin-top: 4px; }
 button.dayend:hover { background: #e67e22; }
-button.restore { background: #2980b9; margin: 4px; font-size: 15px; padding: 10px 16px; }
-button.restore:hover { background: #2471a3; }
 button.sync { background: #16a085; color: #fff; font-weight: 700; }
 button.sync:hover { background: #138d75; }
 a.reportlink { display: inline-block; text-decoration: none; background: #16a085; color: #fff; padding: 10px 18px; border-radius: 6px; font-size: 15px; font-weight: 700; }
@@ -128,8 +126,9 @@ a.reportlink:hover { background: #138d75; }
 <button class="sync" onclick="syncFromHistory()">📥 가계부 기록으로 월·연 맞추기</button>
 </div>
 <div class="muted">
-• 정산 페이지의 <b>일별 기록을 모두 합산</b>해서 월수익·연수익을 다시 맞춥니다.<br>
-• <b>오늘 일수익</b>은 그대로 두고 그 위에 더해 표시돼요. (오늘 날짜는 중복 방지를 위해 합산 제외)<br>
+• 정산 페이지의 <b>일별·월별 기록을 모두 합산</b>해서 이번 달·올해 수익을 맞춥니다.<br>
+• 월별로만 입력한 과거 달(예: 1~5월)도 <b>올해 합계(연수익)에 반영</b>됩니다.<br>
+• <b>오늘 일수익</b>은 그대로 두고 그 위에 더해 표시돼요. (중복 방지)<br>
 • 잘못 눌러도 아래 <b>↩️ 되돌리기</b>로 복구할 수 있습니다.
 </div>
 </div>
@@ -247,7 +246,7 @@ function showNotice(message, type) {
   noticeTimer = setTimeout(function () {
     el.style.display = 'none';
     el.className = '';
-  }, 3000);
+  }, 4000);
 }
 
 function toNum(v) {
@@ -293,30 +292,58 @@ function setTodayHistory(grossValue) {
   });
 }
 
-/* === 가계부 일별 기록 → 월·연 합산 맞추기 === */
+/* === 가계부(일별+월별+연별) → 월·연 합산 맞추기 === */
 function syncFromHistory() {
-  if (!confirm('정산 페이지의 일별 기록을 합산해서\n월수익·연수익을 다시 맞출까요?\n(오늘 일수익은 그대로 유지됩니다.)')) return;
+  if (!confirm('정산 페이지의 기록(일별·월별·연별)을 합산해서\n월수익·연수익을 다시 맞출까요?\n(오늘 일수익은 그대로 유지됩니다.)')) return;
   var cur = dateParts();
   db.ref('history').once('value').then(function (snap) {
     var data = snap.val() || {};
-    var monthSum = 0, yearSum = 0;
+    var monthOv = data.override_month || {};
+    var yearOv = data.override_year || {};
+
+    /* 일별 기록 → 월별 합계, 오늘 금액 */
+    var dailyByMonth = {};
+    var todayGross = 0;
     Object.keys(data).forEach(function (k) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return; // override_month/override_year 등 제외
-      if (k === cur.day) return;                  // 오늘은 일수익으로 따로 관리 → 합산 제외
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return;
       var g = toNum(data[k] && data[k].gross);
-      if (k.indexOf(cur.month) === 0) monthSum += g;
-      if (k.indexOf(cur.year) === 0) yearSum += g;
+      var mKey = k.slice(0, 7);
+      dailyByMonth[mKey] = (dailyByMonth[mKey] || 0) + g;
+      if (k === cur.day) todayGross += g;
     });
+
+    /* 이번 달 합계: 월별 입력값(덮어쓰기) 우선, 없으면 일별 합계 */
+    var curMonthTotal = (monthOv[cur.month] != null)
+      ? toNum(monthOv[cur.month].gross)
+      : (dailyByMonth[cur.month] || 0);
+
+    /* 올해 합계: 연별 입력값 우선, 없으면 올해 각 달(월별 우선/일별) 합산 */
+    var curYearTotal;
+    if (yearOv[cur.year] != null) {
+      curYearTotal = toNum(yearOv[cur.year].gross);
+    } else {
+      var months = {};
+      Object.keys(dailyByMonth).forEach(function (m) { if (m.indexOf(cur.year) === 0) months[m] = true; });
+      Object.keys(monthOv).forEach(function (m) { if (m.indexOf(cur.year) === 0) months[m] = true; });
+      curYearTotal = 0;
+      Object.keys(months).forEach(function (m) {
+        curYearTotal += (monthOv[m] != null) ? toNum(monthOv[m].gross) : (dailyByMonth[m] || 0);
+      });
+    }
+
+    var monthBase = curMonthTotal - todayGross; if (monthBase < 0) monthBase = 0;
+    var yearBase = curYearTotal - todayGross; if (yearBase < 0) yearBase = 0;
+
     backupAndTransaction('가계부 합산 맞추기', function (d) {
       var c = dateParts();
       if (!d) d = { today: 0, monthBase: 0, yearBase: 0, lastDay: c.day, lastMonth: c.month, lastYear: c.year };
-      d.monthBase = monthSum;
-      d.yearBase = yearSum;
+      d.monthBase = monthBase;
+      d.yearBase = yearBase;
       d.lastDay = d.lastDay || c.day;
       d.lastMonth = d.lastMonth || c.month;
       d.lastYear = d.lastYear || c.year;
       return recompute(d);
-    }, '월·연 수익을 가계부 기록에 맞춰 갱신했습니다.');
+    }, '맞춤 완료 — 이번 달 ' + won(curMonthTotal) + ', 올해 ' + won(curYearTotal));
   }).catch(function (err) {
     showNotice('가계부 불러오기 실패: ' + err, 'error');
   });
