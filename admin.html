@@ -24,6 +24,8 @@ button.dayend { background: #f39c12; color: #211400; font-weight: 700; margin-to
 button.dayend:hover { background: #e67e22; }
 button.restore { background: #2980b9; margin: 4px; font-size: 15px; padding: 10px 16px; }
 button.restore:hover { background: #2471a3; }
+button.sync { background: #16a085; color: #fff; font-weight: 700; }
+button.sync:hover { background: #138d75; }
 a.reportlink { display: inline-block; text-decoration: none; background: #16a085; color: #fff; padding: 10px 18px; border-radius: 6px; font-size: 15px; font-weight: 700; }
 a.reportlink:hover { background: #138d75; }
 .row { margin: 8px 0; }
@@ -121,13 +123,25 @@ a.reportlink:hover { background: #138d75; }
 </div>
 
 <div class="card">
+<div class="muted" style="margin-bottom:8px">📥 가계부와 월·연 수익 맞추기</div>
+<div class="undobar">
+<button class="sync" onclick="syncFromHistory()">📥 가계부 기록으로 월·연 맞추기</button>
+</div>
+<div class="muted">
+• 정산 페이지의 <b>일별 기록을 모두 합산</b>해서 월수익·연수익을 다시 맞춥니다.<br>
+• <b>오늘 일수익</b>은 그대로 두고 그 위에 더해 표시돼요. (오늘 날짜는 중복 방지를 위해 합산 제외)<br>
+• 잘못 눌러도 아래 <b>↩️ 되돌리기</b>로 복구할 수 있습니다.
+</div>
+</div>
+
+<div class="card">
 <div class="muted" style="margin-bottom:8px">↩️ 되돌리기 (실수로 저장했을 때)</div>
 <div class="undobar">
 <button class="undo" onclick="undoLast()">↩️ 되돌리기 (최근 변경 취소)</button>
 </div>
 <div class="muted" id="undoCount" style="margin-top:8px">되돌릴 항목 없음</div>
 <div class="muted">
-• 일·월·연수익을 잘못 저장했거나, 하루 마무리·초기화·빠른 추가를 실수했을 때 누르면 직전 상태로 되돌립니다.<br>
+• 일·월·연수익을 잘못 저장했거나, 하루 마무리·초기화·빠른 추가·가계부 맞추기를 실수했을 때 누르면 직전 상태로 되돌립니다.<br>
 • 누를 때마다 한 단계씩, <b>최근 20번까지</b> 거슬러 되돌릴 수 있어요.<br>
 • 가계부(정산 페이지)의 오늘 기록도 함께 복원됩니다.
 </div>
@@ -192,7 +206,7 @@ a.reportlink:hover { background: #138d75; }
 </div>
 
 <div class="muted" style="margin-top:6px">
-• 저장, 하루 마무리, 초기화, 빠른 추가는 모두 자동으로 되돌리기 기록에 저장됩니다.<br>
+• 저장, 하루 마무리, 초기화, 빠른 추가, 가계부 맞추기는 모두 자동으로 되돌리기 기록에 저장됩니다.<br>
 • 잘못했을 땐 위쪽 <b>↩️ 되돌리기</b> 버튼을 사용하세요.<br>
 • 월수익 초기화 시 오늘 수익도 함께 0이 됩니다.<br>
 • 연수익 초기화 시 일·월·연 수익이 모두 0이 됩니다.
@@ -276,6 +290,35 @@ function setTodayHistory(grossValue) {
     gross: grossValue,
     net: netAfterTax(grossValue),
     updatedAt: new Date().toISOString()
+  });
+}
+
+/* === 가계부 일별 기록 → 월·연 합산 맞추기 === */
+function syncFromHistory() {
+  if (!confirm('정산 페이지의 일별 기록을 합산해서\n월수익·연수익을 다시 맞출까요?\n(오늘 일수익은 그대로 유지됩니다.)')) return;
+  var cur = dateParts();
+  db.ref('history').once('value').then(function (snap) {
+    var data = snap.val() || {};
+    var monthSum = 0, yearSum = 0;
+    Object.keys(data).forEach(function (k) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return; // override_month/override_year 등 제외
+      if (k === cur.day) return;                  // 오늘은 일수익으로 따로 관리 → 합산 제외
+      var g = toNum(data[k] && data[k].gross);
+      if (k.indexOf(cur.month) === 0) monthSum += g;
+      if (k.indexOf(cur.year) === 0) yearSum += g;
+    });
+    backupAndTransaction('가계부 합산 맞추기', function (d) {
+      var c = dateParts();
+      if (!d) d = { today: 0, monthBase: 0, yearBase: 0, lastDay: c.day, lastMonth: c.month, lastYear: c.year };
+      d.monthBase = monthSum;
+      d.yearBase = yearSum;
+      d.lastDay = d.lastDay || c.day;
+      d.lastMonth = d.lastMonth || c.month;
+      d.lastYear = d.lastYear || c.year;
+      return recompute(d);
+    }, '월·연 수익을 가계부 기록에 맞춰 갱신했습니다.');
+  }).catch(function (err) {
+    showNotice('가계부 불러오기 실패: ' + err, 'error');
   });
 }
 
@@ -493,7 +536,7 @@ function addIncome(amount) {
     return recompute(data);
   }, '+' + comma(amount) + '원 추가 완료');
 
-  addToHistory(amount); /* 가계부 누적 */
+  addToHistory(amount);
 }
 
 function addCustomIncome() {
