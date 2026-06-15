@@ -43,6 +43,9 @@ a.reportlink:hover { background: #138d75; }
 .quick-custom input { width: 150px; margin: 0; font-size: 16px; }
 .quick-custom button { background: #8e44ad; padding: 10px 18px; font-size: 15px; }
 .quick-custom button:hover { background: #7d3c98; }
+.undobar { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.undobar button.undo { background: #2980b9; font-size: 16px; padding: 12px 22px; font-weight: 700; }
+.undobar button.undo:hover { background: #2471a3; }
 #authGate { position: fixed; inset: 0; background: #222; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; z-index: 9999; }
 #authGate input { width: 220px; text-align: left; font-size: 16px; }
 @media (max-width: 560px) {
@@ -118,6 +121,19 @@ a.reportlink:hover { background: #138d75; }
 </div>
 
 <div class="card">
+<div class="muted" style="margin-bottom:8px">↩️ 되돌리기 (실수로 저장했을 때)</div>
+<div class="undobar">
+<button class="undo" onclick="undoLast()">↩️ 되돌리기 (최근 변경 취소)</button>
+</div>
+<div class="muted" id="undoCount" style="margin-top:8px">되돌릴 항목 없음</div>
+<div class="muted">
+• 일·월·연수익을 잘못 저장했거나, 하루 마무리·초기화·빠른 추가를 실수했을 때 누르면 직전 상태로 되돌립니다.<br>
+• 누를 때마다 한 단계씩, <b>최근 20번까지</b> 거슬러 되돌릴 수 있어요.<br>
+• 가계부(정산 페이지)의 오늘 기록도 함께 복원됩니다.
+</div>
+</div>
+
+<div class="card">
 <a class="reportlink" href="report.html" target="_blank">📊 정산(가계부) 페이지 열기</a>
 </div>
 
@@ -173,11 +189,11 @@ a.reportlink:hover { background: #138d75; }
 <button class="reset" onclick="resetDaily()">일수익 초기화</button>
 <button class="reset" onclick="resetMonth()">월수익 초기화</button>
 <button class="reset" onclick="resetYear()">연수익 초기화</button>
-<button class="restore" onclick="restoreBackup()">직전 값 복구</button>
 </div>
 
 <div class="muted" style="margin-top:6px">
-• 저장, 하루 마무리, 초기화 전에는 직전 값이 자동 백업됩니다.<br>
+• 저장, 하루 마무리, 초기화, 빠른 추가는 모두 자동으로 되돌리기 기록에 저장됩니다.<br>
+• 잘못했을 땐 위쪽 <b>↩️ 되돌리기</b> 버튼을 사용하세요.<br>
 • 월수익 초기화 시 오늘 수익도 함께 0이 됩니다.<br>
 • 연수익 초기화 시 일·월·연 수익이 모두 0이 됩니다.
 </div>
@@ -205,6 +221,7 @@ a.reportlink:hover { background: #138d75; }
 var noticeTimer = null;
 var TAX_RATE = 0.055;
 var appStarted = false;
+var UNDO_LIMIT = 20;
 
 function showNotice(message, type) {
   var el = document.getElementById('notice');
@@ -259,6 +276,71 @@ function setTodayHistory(grossValue) {
     gross: grossValue,
     net: netAfterTax(grossValue),
     updatedAt: new Date().toISOString()
+  });
+}
+
+/* === 되돌리기(undo) 스택 === */
+function readStack(raw) {
+  if (Array.isArray(raw)) return raw.slice();
+  if (raw && typeof raw === 'object') {
+    return Object.keys(raw).sort(function (a, b) { return a - b; }).map(function (k) { return raw[k]; });
+  }
+  return [];
+}
+
+function pushUndo(currentData, actionName) {
+  return db.ref('overlayDataBackup/stack').once('value').then(function (snap) {
+    var stack = readStack(snap.val());
+    var entry = Object.assign({}, currentData || {});
+    delete entry.daily; delete entry.weekly; delete entry.monthly;
+    entry._action = actionName;
+    entry._at = new Date().toISOString();
+    stack.push(entry);
+    if (stack.length > UNDO_LIMIT) stack = stack.slice(stack.length - UNDO_LIMIT);
+    return db.ref('overlayDataBackup/stack').set(stack);
+  });
+}
+
+function undoLast() {
+  db.ref('overlayDataBackup/stack').once('value').then(function (snap) {
+    var stack = readStack(snap.val());
+    if (stack.length === 0) { showNotice('되돌릴 이전 값이 없습니다.', 'error'); return; }
+    var last = stack.pop();
+    var action = last._action || '이전 작업';
+    var at = last._at || '-';
+    if (!confirm('가장 최근 변경(' + action + ')을 되돌릴까요?\n시점: ' + at + '\n되돌린 뒤 남는 횟수: ' + stack.length + '회')) return;
+    delete last._action; delete last._at;
+    last = recompute(last);
+    db.ref('overlayDataBackup/stack').set(stack).then(function () {
+      db.ref('overlayData').set(last, function (err) {
+        if (err) { showNotice('되돌리기 실패: ' + err, 'error'); return; }
+        var cur = dateParts();
+        var rDay = last.lastDay || cur.day;
+        if (rDay === cur.day) {
+          var rToday = toNum(last.today);
+          if (rToday > 0) {
+            db.ref('history/' + rDay).set({
+              gross: rToday,
+              net: netAfterTax(rToday),
+              updatedAt: new Date().toISOString()
+            });
+          } else {
+            db.ref('history/' + rDay).remove();
+          }
+        }
+        showNotice('되돌리기 완료 (남은 ' + stack.length + '회)', 'success');
+      });
+    });
+  }).catch(function (err) {
+    showNotice('되돌리기 실패: ' + err, 'error');
+  });
+}
+
+function watchUndoCount() {
+  db.ref('overlayDataBackup/stack').on('value', function (snap) {
+    var n = readStack(snap.val()).length;
+    var el = document.getElementById('undoCount');
+    if (el) el.innerText = n > 0 ? ('되돌리기 가능: ' + n + '회') : '되돌릴 항목 없음';
   });
 }
 
@@ -358,34 +440,13 @@ function rollover(cb) {
 
 function backupAndTransaction(actionName, updater, successMsg) {
   db.ref('overlayData').once('value').then(function (snap) {
-    var backup = snap.val() || {};
-    backup.backupAt = new Date().toISOString();
-    backup.backupAction = actionName;
-    return db.ref('overlayDataBackup').set(backup);
+    return pushUndo(snap.val() || {}, actionName);
   }).then(function () {
     db.ref('overlayData').transaction(updater, function (err) {
       showNotice(err ? actionName + ' 실패: ' + err : successMsg, err ? 'error' : 'success');
     });
   }).catch(function (err) {
     showNotice('백업 실패: ' + err, 'error');
-  });
-}
-
-function restoreBackup() {
-  db.ref('overlayDataBackup').once('value').then(function (snap) {
-    var backup = snap.val();
-    if (!backup) { showNotice('복구할 백업이 없습니다.', 'error'); return; }
-    var backupAt = backup.backupAt || '-';
-    var backupAction = backup.backupAction || '이전 작업';
-    if (!confirm('직전 값을 복구할까요?\n백업 시점: ' + backupAt + '\n백업 작업: ' + backupAction)) return;
-    delete backup.backupAt;
-    delete backup.backupAction;
-    backup = recompute(backup);
-    db.ref('overlayData').set(backup, function (err) {
-      showNotice(err ? '복구 실패: ' + err : '직전 값 복구 완료', err ? 'error' : 'success');
-    });
-  }).catch(function (err) {
-    showNotice('백업 불러오기 실패: ' + err, 'error');
   });
 }
 
@@ -422,8 +483,6 @@ function addIncome(amount) {
   amount = toNum(amount);
   if (amount <= 0) { showNotice('추가할 금액을 입력해 주세요.', 'error'); return; }
 
-  addToHistory(amount); /* 가계부 누적 */
-
   backupAndTransaction('빠른 수익 추가', function (data) {
     var c = dateParts();
     if (!data) data = { today: 0, monthBase: 0, yearBase: 0, lastDay: c.day, lastMonth: c.month, lastYear: c.year };
@@ -433,6 +492,8 @@ function addIncome(amount) {
     data.lastYear = data.lastYear || c.year;
     return recompute(data);
   }, '+' + comma(amount) + '원 추가 완료');
+
+  addToHistory(amount); /* 가계부 누적 */
 }
 
 function addCustomIncome() {
@@ -471,7 +532,6 @@ function closeDay() {
   if (!confirm('하루 마무리를 진행할까요?\n오늘 수익이 월·연 합계에 반영되고 일수익은 0원이 됩니다.')) return;
   var cur = dateParts();
 
-  // 마무리 전에 오늘 번 금액을 가계부(history)에 확정 기록
   db.ref('overlayData').once('value').then(function (snap) {
     var d = snap.val() || {};
     var grossToday = toNum(d.today);
@@ -503,7 +563,7 @@ function resetDaily() {
     data.today = 0;
     return recompute(data);
   }, '일수익 초기화 완료');
-  setTodayHistory(0); /* 오늘 가계부 기록도 0 */
+  setTodayHistory(0);
 }
 
 function resetMonth() {
@@ -550,7 +610,7 @@ function saveData() {
     return recompute(data);
   }, '저장 완료!');
 
-  setTodayHistory(dailyV); /* 일수익 입력값을 오늘 가계부 기록으로 저장 */
+  setTodayHistory(dailyV);
 }
 
 /* === 로그인 / 앱 시작 === */
@@ -566,6 +626,7 @@ function doLogin() {
 function initApp() {
   if (appStarted) return;
   appStarted = true;
+  watchUndoCount();
   rollover(function () {
     db.ref('overlayData').on('value', function (snap) { render(snap.val()); });
   });
