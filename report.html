@@ -11,7 +11,7 @@
 <script src="firebase.js"></script>
 
 <style>
-  body { font-family: 'Noto Sans KR', sans-serif; background: #222; color: #fff; padding: 16px; max-width: 720px; margin: 0 auto; }
+  body { font-family: 'Noto Sans KR', sans-serif; background: #222; color: #fff; padding: 16px; max-width: 760px; margin: 0 auto; }
   h1 { font-size: 20px; text-align: center; }
   h2 { font-size: 16px; margin: 22px 0 8px; color: #ffd166; }
   .cards { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 14px 0; }
@@ -23,7 +23,12 @@
   th, td { padding: 8px 6px; border-bottom: 1px solid #3a3a3a; text-align: right; }
   th:first-child, td:first-child { text-align: left; }
   th { color: #cfcfcf; }
-  .del { background: #b33939; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
+  input.edit { width: 110px; padding: 6px; border-radius: 5px; border: none; font-size: 13px; text-align: right; }
+  button.save { background: #27ae60; color: #fff; border: none; border-radius: 5px; padding: 5px 9px; cursor: pointer; font-size: 12px; }
+  button.save:hover { background: #1e8449; }
+  .del { background: #b33939; color: #fff; border: none; border-radius: 5px; padding: 5px 9px; cursor: pointer; font-size: 12px; }
+  .del:hover { background: #922b2b; }
+  .ovtag { background: #8e44ad; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: middle; }
   .addbox { background: #2c2c2c; border-radius: 10px; padding: 14px; margin: 14px 0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
   .addbox input { padding: 8px; border-radius: 6px; border: none; font-size: 15px; text-align: right; }
   .addbox button { background: #8e44ad; color: #fff; border: none; border-radius: 6px; padding: 9px 16px; font-size: 14px; cursor: pointer; }
@@ -55,29 +60,29 @@
 <div class="addbox">
   <input id="manualDate" type="date">
   <input id="manualGross" type="text" inputmode="numeric" placeholder="세전 금액">
-  <button onclick="manualAdd()">기록 추가/수정</button>
+  <button onclick="manualAdd()">날짜별 기록 추가/수정</button>
 </div>
-<div class="muted">과거 날짜의 수익을 직접 채워 넣거나 특정 날짜 기록을 수정할 수 있어요. (세후는 자동 계산)</div>
+<div class="muted">과거 날짜의 수익을 새로 추가하거나, 아래 표에서 각 칸을 직접 고쳐 저장할 수 있어요. (세후는 자동 계산)</div>
 
 <h2>📅 일별 기록</h2>
 <table>
-  <thead><tr><th>날짜</th><th>세전</th><th>세후</th><th></th></tr></thead>
+  <thead><tr><th>날짜</th><th>세전(수정)</th><th>세후</th><th>관리</th></tr></thead>
   <tbody id="dailyBody"></tbody>
 </table>
 
 <h2>🗓️ 월별 기록</h2>
 <table>
-  <thead><tr><th>월</th><th>세전</th><th>세후</th></tr></thead>
+  <thead><tr><th>월</th><th>세전(수정)</th><th>세후</th><th>관리</th></tr></thead>
   <tbody id="monthBody"></tbody>
 </table>
+<div class="muted">월 값을 직접 입력해 저장하면 일별 합계 대신 그 값이 표시됩니다. "합계복원"으로 되돌릴 수 있어요.</div>
 
 <h2>📈 연별 기록</h2>
 <table>
-  <thead><tr><th>연도</th><th>세전</th><th>세후</th></tr></thead>
+  <thead><tr><th>연도</th><th>세전(수정)</th><th>세후</th><th>관리</th></tr></thead>
   <tbody id="yearBody"></tbody>
 </table>
-
-<div class="muted">관리 페이지에서 수익을 입력하면 이 페이지에 날짜별 세전·세후가 자동으로 기록·정산됩니다.</div>
+<div class="muted">연 값도 직접 입력해 덮어쓰거나 "합계복원"으로 일별 합계로 되돌릴 수 있어요.</div>
 
 <script>
 var TAX_RATE = 0.055;
@@ -86,6 +91,7 @@ var appStarted = false;
 function toNum(v){ var n = parseInt(String(v).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
 function won(n){ return toNum(n).toLocaleString() + '원'; }
 function netOf(g){ return Math.round(toNum(g) * (1 - TAX_RATE)); }
+function isDay(k){ return /^\d{4}-\d{2}-\d{2}$/.test(k); }
 
 function nowParts(){
   var n = new Date();
@@ -95,69 +101,129 @@ function nowParts(){
   return { day: y+'-'+m+'-'+d, month: y+'-'+m, year: String(y) };
 }
 
+/* === 일별 수정 === */
+function saveDay(day){
+  var v = toNum(document.getElementById('d_'+day).value);
+  if(v < 0){ alert('금액을 확인하세요.'); return; }
+  db.ref('history/' + day).set({ gross: v, net: netOf(v), updatedAt: new Date().toISOString() });
+}
 function deleteDay(day){
   if(!confirm(day + ' 기록을 삭제할까요?')) return;
   db.ref('history/' + day).remove();
 }
 
+/* === 월별 수정(덮어쓰기) === */
+function saveMonth(m){
+  var v = toNum(document.getElementById('m_'+m).value);
+  if(v < 0){ alert('금액을 확인하세요.'); return; }
+  db.ref('history/override_month/' + m).set({ gross: v, net: netOf(v), updatedAt: new Date().toISOString() });
+}
+function clearMonth(m){
+  if(!confirm(m + ' 월 수정값을 지우고 일별 합계로 되돌릴까요?')) return;
+  db.ref('history/override_month/' + m).remove();
+}
+
+/* === 연별 수정(덮어쓰기) === */
+function saveYear(y){
+  var v = toNum(document.getElementById('y_'+y).value);
+  if(v < 0){ alert('금액을 확인하세요.'); return; }
+  db.ref('history/override_year/' + y).set({ gross: v, net: netOf(v), updatedAt: new Date().toISOString() });
+}
+function clearYear(y){
+  if(!confirm(y + '년 수정값을 지우고 일별 합계로 되돌릴까요?')) return;
+  db.ref('history/override_year/' + y).remove();
+}
+
+/* === 과거 날짜 직접 추가 === */
 function manualAdd(){
   var day = document.getElementById('manualDate').value;
   var gross = toNum(document.getElementById('manualGross').value);
   if(!day){ alert('날짜를 선택하세요.'); return; }
   if(gross < 0){ alert('금액을 확인하세요.'); return; }
-  db.ref('history/' + day).set({
-    gross: gross,
-    net: netOf(gross),
-    updatedAt: new Date().toISOString()
-  });
+  db.ref('history/' + day).set({ gross: gross, net: netOf(gross), updatedAt: new Date().toISOString() });
   document.getElementById('manualGross').value = '';
 }
 
 function render(data){
   data = data || {};
-  var days = Object.keys(data).sort().reverse();
+  var monthOv = data.override_month || {};
+  var yearOv  = data.override_year  || {};
   var cur = nowParts();
 
-  var todayG = 0, monthG = 0, yearG = 0;
+  var dayKeys = Object.keys(data).filter(isDay).sort().reverse();
+
+  var todayG = 0, autoMonth = 0, autoYear = 0;
   var monthMap = {}, yearMap = {};
   var dailyRows = '';
 
-  days.forEach(function(day){
+  dayKeys.forEach(function(day){
     var g = toNum(data[day].gross);
     var n = data[day].net != null ? toNum(data[day].net) : netOf(g);
 
     if(day === cur.day) todayG += g;
-    if(day.indexOf(cur.month) === 0) monthG += g;
-    if(day.indexOf(cur.year) === 0) yearG += g;
+    if(day.indexOf(cur.month) === 0) autoMonth += g;
+    if(day.indexOf(cur.year) === 0) autoYear += g;
 
     var mKey = day.slice(0,7);
     var yKey = day.slice(0,4);
     monthMap[mKey] = (monthMap[mKey]||0) + g;
     yearMap[yKey]  = (yearMap[yKey]||0) + g;
 
-    dailyRows += '<tr><td>'+day+'</td><td>'+won(g)+'</td><td>'+won(n)+
-      '</td><td><button class="del" onclick="deleteDay(\''+day+'\')">삭제</button></td></tr>';
+    dailyRows +=
+      '<tr><td>'+day+'</td>'+
+      '<td><input class="edit" id="d_'+day+'" type="text" inputmode="numeric" value="'+g+'"></td>'+
+      '<td>'+won(n)+'</td>'+
+      '<td><button class="save" onclick="saveDay(\''+day+'\')">저장</button> '+
+      '<button class="del" onclick="deleteDay(\''+day+'\')">삭제</button></td></tr>';
   });
+
+  /* 상단 카드 (덮어쓰기 값이 있으면 우선) */
+  var monthShown = monthOv[cur.month] != null ? toNum(monthOv[cur.month].gross) : autoMonth;
+  var yearShown  = yearOv[cur.year]  != null ? toNum(yearOv[cur.year].gross)  : autoYear;
 
   document.getElementById('todayG').innerText = won(todayG);
   document.getElementById('todayN').innerText = '세후 ' + won(netOf(todayG));
-  document.getElementById('monthG').innerText = won(monthG);
-  document.getElementById('monthN').innerText = '세후 ' + won(netOf(monthG));
-  document.getElementById('yearG').innerText = won(yearG);
-  document.getElementById('yearN').innerText = '세후 ' + won(netOf(yearG));
+  document.getElementById('monthG').innerText = won(monthShown);
+  document.getElementById('monthN').innerText = '세후 ' + won(netOf(monthShown));
+  document.getElementById('yearG').innerText = won(yearShown);
+  document.getElementById('yearN').innerText = '세후 ' + won(netOf(yearShown));
 
   document.getElementById('dailyBody').innerHTML =
     dailyRows || '<tr><td colspan="4" style="text-align:center;color:#888">기록이 없습니다.</td></tr>';
 
+  /* 월별: 일별 합계 + 덮어쓰기 키 합집합 */
+  var monthSet = {};
+  Object.keys(monthMap).forEach(function(m){ monthSet[m]=true; });
+  Object.keys(monthOv).forEach(function(m){ monthSet[m]=true; });
+  var monthRows = Object.keys(monthSet).sort().reverse().map(function(m){
+    var auto = monthMap[m] || 0;
+    var hasOv = monthOv[m] != null;
+    var shown = hasOv ? toNum(monthOv[m].gross) : auto;
+    return '<tr><td>'+m+(hasOv?' <span class="ovtag">수정됨</span>':'')+'</td>'+
+      '<td><input class="edit" id="m_'+m+'" type="text" inputmode="numeric" value="'+shown+'"></td>'+
+      '<td>'+won(netOf(shown))+'</td>'+
+      '<td><button class="save" onclick="saveMonth(\''+m+'\')">저장</button> '+
+      (hasOv?'<button class="del" onclick="clearMonth(\''+m+'\')">합계복원</button>':'')+'</td></tr>';
+  }).join('');
   document.getElementById('monthBody').innerHTML =
-    Object.keys(monthMap).sort().reverse().map(function(m){
-      return '<tr><td>'+m+'</td><td>'+won(monthMap[m])+'</td><td>'+won(netOf(monthMap[m]))+'</td></tr>';
-    }).join('') || '<tr><td colspan="3" style="text-align:center;color:#888">-</td></tr>';
+    monthRows || '<tr><td colspan="4" style="text-align:center;color:#888">-</td></tr>';
 
+  /* 연별: 일별 합계 + 덮어쓰기 키 합집합 */
+  var yearSet = {};
+  Object.keys(yearMap).forEach(function(y){ yearSet[y]=true; });
+  Object.keys(yearOv).forEach(function(y){ yearSet[y]=true; });
+  var yearRows = Object.keys(yearSet).sort().reverse().map(function(y){
+    var auto = yearMap[y] || 0;
+    var hasOv = yearOv[y] != null;
+    var shown = hasOv ? toNum(yearOv[y].gross) : auto;
+    return '<tr><td>'+y+(hasOv?' <span class="ovtag">수정됨</span>':'')+'</td>'+
+      '<td><input class="edit" id="y_'+y+'" type="text" inputmode="numeric" value="'+shown+'"></td>'+
+      '<td>'+won(netOf(shown))+'</td>'+
+      '<td><button class="save" onclick="saveYear(\''+y+'\')">저장</button> '+
+      (hasOv?'<button class="del" onclick="clearYear(\''+y+'\')">합계복원</button>':'')+'</td></tr>';
+  }).join('');
   document.getElementById('yearBody').innerHTML =
-    Object.keys(yearMap).sort().reverse().map(function(y){
-      return '<tr><td>'+y+'</td><td>'+won(yearMap[y])+'</td><td>'+won(netOf(yearMap[y]))+'</td></tr>';
-    }).join('') || '<tr><td colspan="3" style="text-align:center;color:#888">-</td></tr>';
+    yearRows || '<tr><td colspan="4" style="text-align:center;color:#888">-</td></tr>';
 }
 
 /* === 로그인 / 앱 시작 === */
