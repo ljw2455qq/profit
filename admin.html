@@ -126,9 +126,9 @@ a.reportlink:hover { background: #138d75; }
 <button class="sync" onclick="syncFromHistory()">📥 가계부 기록으로 월·연 맞추기</button>
 </div>
 <div class="muted">
-• 정산 페이지의 <b>일별·월별 기록을 모두 합산</b>해서 이번 달·올해 수익을 맞춥니다.<br>
+• 정산 페이지의 <b>일별·월별 기록을 모두 합산</b>해서 일·월·연 수익을 맞춥니다.<br>
 • 월별로만 입력한 과거 달(예: 1~5월)도 <b>올해 합계(연수익)에 반영</b>됩니다.<br>
-• <b>오늘 일수익</b>은 그대로 두고 그 위에 더해 표시돼요. (중복 방지)<br>
+• 오늘 일수익은 <b>가계부의 오늘 기록 기준</b>으로 함께 맞춰집니다.<br>
 • 잘못 눌러도 아래 <b>↩️ 되돌리기</b>로 복구할 수 있습니다.
 </div>
 </div>
@@ -268,6 +268,14 @@ function taxOnly(amount) {
   return amount - netAfterTax(amount);
 }
 
+function dateParts() {
+  var n = new Date();
+  var y = n.getFullYear();
+  var m = String(n.getMonth() + 1).padStart(2, '0');
+  var d = String(n.getDate()).padStart(2, '0');
+  return { day: y + '-' + m + '-' + d, month: y + '-' + m, year: String(y) };
+}
+
 /* === 가계부(history) 기록용 === */
 function addToHistory(amount) {
   amount = toNum(amount);
@@ -292,9 +300,26 @@ function setTodayHistory(grossValue) {
   });
 }
 
-/* === 가계부(일별+월별+연별) → 월·연 합산 맞추기 === */
+/* === 날짜 정산(rollover): 진짜 날짜가 바뀐 다음에만 동작 === */
+function applyRollover(data, c) {
+  if (!data) return data;
+  var today = toNum(data.today);
+  if (!data.lastDay) {
+    data.lastDay = c.day; data.lastMonth = c.month; data.lastYear = c.year;
+    return data;
+  }
+  if (data.lastDay !== c.day) {
+    data.yearBase = (data.lastYear === c.year) ? toNum(data.yearBase) + today : 0;
+    data.monthBase = (data.lastMonth === c.month) ? toNum(data.monthBase) + today : 0;
+    data.today = 0;
+    data.lastDay = c.day; data.lastMonth = c.month; data.lastYear = c.year;
+  }
+  return data;
+}
+
+/* === 가계부(일별+월별+연별) → 일·월·연 합산 맞추기 === */
 function syncFromHistory() {
-  if (!confirm('정산 페이지의 기록(일별·월별·연별)을 합산해서\n월수익·연수익을 다시 맞출까요?\n(오늘 일수익은 그대로 유지됩니다.)')) return;
+  if (!confirm('정산 페이지의 기록(일별·월별·연별)을 합산해서\n일·월·연 수익을 다시 맞출까요?')) return;
   var cur = dateParts();
   db.ref('history').once('value').then(function (snap) {
     var data = snap.val() || {};
@@ -336,14 +361,13 @@ function syncFromHistory() {
 
     backupAndTransaction('가계부 합산 맞추기', function (d) {
       var c = dateParts();
-      if (!d) d = { today: 0, monthBase: 0, yearBase: 0, lastDay: c.day, lastMonth: c.month, lastYear: c.year };
+      if (!d) d = { today: 0, monthBase: 0, yearBase: 0 };
+      d.today = todayGross;
       d.monthBase = monthBase;
       d.yearBase = yearBase;
-      d.lastDay = d.lastDay || c.day;
-      d.lastMonth = d.lastMonth || c.month;
-      d.lastYear = d.lastYear || c.year;
+      d.lastDay = c.day; d.lastMonth = c.month; d.lastYear = c.year;
       return recompute(d);
-    }, '맞춤 완료 — 이번 달 ' + won(curMonthTotal) + ', 올해 ' + won(curYearTotal));
+    }, '맞춤 완료 — 오늘 ' + won(todayGross) + ', 이번 달 ' + won(curMonthTotal) + ', 올해 ' + won(curYearTotal));
   }).catch(function (err) {
     showNotice('가계부 불러오기 실패: ' + err, 'error');
   });
@@ -461,14 +485,6 @@ function renderGoalRate(data) {
   document.getElementById('rYear').innerText = rateText(data.monthly, data.yearGoal);
 }
 
-function dateParts() {
-  var n = new Date();
-  var y = n.getFullYear();
-  var m = String(n.getMonth() + 1).padStart(2, '0');
-  var d = String(n.getDate()).padStart(2, '0');
-  return { day: y + '-' + m + '-' + d, month: y + '-' + m, year: String(y) };
-}
-
 function recompute(data) {
   var today = toNum(data.today);
   var monthBase = toNum(data.monthBase);
@@ -489,21 +505,7 @@ function rollover(cb) {
       data = { today: 0, monthBase: 0, yearBase: 0, lastDay: cur.day, lastMonth: cur.month, lastYear: cur.year };
       return recompute(data);
     }
-    var today = toNum(data.today);
-    var monthBase = toNum(data.monthBase);
-    var yearBase = toNum(data.yearBase);
-    if (!data.lastDay) {
-      data.lastDay = cur.day; data.lastMonth = cur.month; data.lastYear = cur.year;
-      return recompute(data);
-    }
-    if (data.lastDay !== cur.day) {
-      yearBase = data.lastYear === cur.year ? yearBase + today : 0;
-      monthBase = data.lastMonth === cur.month ? monthBase + today : 0;
-      today = 0;
-      data.today = today; data.monthBase = monthBase; data.yearBase = yearBase;
-      data.lastDay = cur.day; data.lastMonth = cur.month; data.lastYear = cur.year;
-      return recompute(data);
-    }
+    data = applyRollover(data, cur);
     return recompute(data);
   }, function () { if (cb) cb(); });
 }
@@ -556,10 +558,9 @@ function addIncome(amount) {
   backupAndTransaction('빠른 수익 추가', function (data) {
     var c = dateParts();
     if (!data) data = { today: 0, monthBase: 0, yearBase: 0, lastDay: c.day, lastMonth: c.month, lastYear: c.year };
+    data = applyRollover(data, c);
     data.today = toNum(data.today) + amount;
-    data.lastDay = data.lastDay || c.day;
-    data.lastMonth = data.lastMonth || c.month;
-    data.lastYear = data.lastYear || c.year;
+    data.lastDay = c.day; data.lastMonth = c.month; data.lastYear = c.year;
     return recompute(data);
   }, '+' + comma(amount) + '원 추가 완료');
 
@@ -630,7 +631,9 @@ function resetDaily() {
   if (!confirmResetAction('일수익 초기화', '오늘 일수익만 0원으로 초기화됩니다.')) return;
   backupAndTransaction('일수익 초기화', function (data) {
     if (!data) return data;
+    var c = dateParts();
     data.today = 0;
+    data.lastDay = c.day; data.lastMonth = c.month; data.lastYear = c.year;
     return recompute(data);
   }, '일수익 초기화 완료');
   setTodayHistory(0);
@@ -640,7 +643,9 @@ function resetMonth() {
   if (!confirmResetAction('월수익 초기화', '이번 달 수익과 오늘 일수익이 모두 0원으로 초기화됩니다.')) return;
   backupAndTransaction('월수익 초기화', function (data) {
     if (!data) return data;
+    var c = dateParts();
     data.today = 0; data.monthBase = 0;
+    data.lastDay = c.day; data.lastMonth = c.month; data.lastYear = c.year;
     return recompute(data);
   }, '월수익 초기화 완료');
 }
@@ -649,7 +654,9 @@ function resetYear() {
   if (!confirmResetAction('연수익 초기화', '일수익, 월수익, 연수익이 모두 0원으로 초기화됩니다.')) return;
   backupAndTransaction('연수익 초기화', function (data) {
     if (!data) return data;
+    var c = dateParts();
     data.today = 0; data.monthBase = 0; data.yearBase = 0;
+    data.lastDay = c.day; data.lastMonth = c.month; data.lastYear = c.year;
     return recompute(data);
   }, '연수익 초기화 완료');
 }
@@ -665,6 +672,7 @@ function saveData() {
   backupAndTransaction('저장', function (data) {
     var c = dateParts();
     if (!data) data = { today: 0, monthBase: 0, yearBase: 0, lastDay: c.day, lastMonth: c.month, lastYear: c.year };
+    data = applyRollover(data, c);
     data = recompute(data);
     var oldDisplayMonth = toNum(data.weekly);
     var oldDisplayYear = toNum(data.monthly);
@@ -674,9 +682,7 @@ function saveData() {
     data.dailyGoal = dailyGoalV;
     data.monthGoal = monthGoalV;
     data.yearGoal = yearGoalV;
-    data.lastDay = data.lastDay || c.day;
-    data.lastMonth = data.lastMonth || c.month;
-    data.lastYear = data.lastYear || c.year;
+    data.lastDay = c.day; data.lastMonth = c.month; data.lastYear = c.year;
     return recompute(data);
   }, '저장 완료!');
 
