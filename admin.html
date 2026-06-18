@@ -459,7 +459,31 @@ function formatMoneyInput(el) {
   if (!el) return;
   var raw = String(el.value || '');
   if (raw.trim() === '') { el.value = ''; updateNetPreviews(); return; }
-  el.value = comma(raw);
+
+  // 커서 앞쪽에 있던 '숫자 개수'를 기억
+  var caret = el.selectionEnd;
+  var digitsBefore = raw.slice(0, caret).replace(/[^0-9]/g, '').length;
+
+  // 콤마 다시 적용
+  var formatted = comma(raw);
+  el.value = formatted;
+
+  // 같은 숫자 개수만큼 지난 위치로 커서 복원 (콤마는 건너뜀)
+  if (el === document.activeElement) {
+    var pos = 0, count = 0;
+    if (digitsBefore > 0) {
+      for (var i = 0; i < formatted.length; i++) {
+        var code = formatted.charCodeAt(i);
+        if (code >= 48 && code <= 57) {
+          count++;
+          if (count === digitsBefore) { pos = i + 1; break; }
+        }
+      }
+      if (count < digitsBefore) pos = formatted.length;
+    }
+    try { el.setSelectionRange(pos, pos); } catch (e) {}
+  }
+
   updateNetPreviews();
 }
 
