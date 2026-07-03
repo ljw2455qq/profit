@@ -49,6 +49,46 @@ select { padding: 8px; border-radius: 6px; border: none; font-size: 14px; }
 .bbar { width: 100%; background: linear-gradient(180deg, #7ee0c0, #16a085); border-radius: 3px 3px 0 0; min-height: 2px; }
 .bday { font-size: 9px; color: #888; margin-top: 3px; }
 
+
+/* 달력형 일별 기록 */
+.cal-head { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.cal-head .title { margin-bottom: 0; }
+.cal-controls { display: flex; gap: 8px; align-items: center; }
+.cal-nav { background: #383838; min-width: 42px; height: 42px; padding: 0; font-size: 18px; }
+#calendarMonth { min-width: 132px; height: 42px; background: #f4f4f4; color: #111; }
+.calendar { margin-top: 14px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-weekday { color: #9aa3b2; font-size: 12px; font-weight: 800; text-align: center; padding: 3px 0; }
+.cal-day { min-height: 82px; background: #232323; border: 1px solid #383838; border-radius: 10px; padding: 7px 6px; color: #fff; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+.cal-day.empty { visibility: hidden; cursor: default; }
+.cal-day:hover, .cal-day.selected { border-color: #7ee0c0; background: #24342f; }
+.cal-day.today { box-shadow: inset 0 0 0 2px #ffd166; }
+.cal-day.has-income { background: linear-gradient(180deg, #24342f, #232323); }
+.cal-num { font-size: 13px; font-weight: 800; color: #dce3ee; }
+.cal-gross { font-size: 13px; font-weight: 800; color: #7ee0c0; line-height: 1.2; word-break: keep-all; }
+.cal-net { font-size: 11px; color: #aab2c0; line-height: 1.2; }
+.cal-empty-note { margin-top: auto; color: #555; font-size: 11px; }
+.selected-day-box { margin-top: 14px; padding: 12px; border: 1px solid #3f4f49; background: #222b28; border-radius: 10px; display: grid; gap: 10px; }
+.selected-day-title { font-weight: 800; color: #7ee0c0; }
+.selected-day-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.selected-day-actions input { width: 140px; padding: 9px; font-size: 15px; text-align: right; border: none; border-radius: 6px; background: #f4f4f4; }
+details.daily-list { margin-top: 14px; }
+details.daily-list summary { cursor: pointer; color: #cfd6e4; font-weight: 700; padding: 10px 0; }
+@media (max-width: 560px) {
+  body { padding: 12px; }
+  .card { padding: 14px; margin: 12px auto; }
+  .calendar { gap: 4px; }
+  .cal-day { min-height: 68px; padding: 6px 4px; border-radius: 8px; }
+  .cal-weekday { font-size: 11px; }
+  .cal-num { font-size: 12px; }
+  .cal-gross { font-size: 11px; }
+  .cal-net { display: none; }
+  .cal-empty-note { display: none; }
+  .cal-head { align-items: stretch; }
+  .cal-controls { width: 100%; }
+  #calendarMonth { flex: 1; min-width: 0; }
+  .selected-day-actions input { flex: 1; min-width: 130px; width: auto; }
+}
+
 #notice { display: none; max-width: 720px; margin: 10px auto; padding: 12px; border-radius: 8px; font-weight: 700; }
 #notice.success { display: block; background: #1f7a3a; } #notice.error { display: block; background: #b33939; }
 a.back { display: inline-block; color: #8ab4ff; text-decoration: none; font-size: 14px; }
@@ -80,6 +120,40 @@ a.back { display: inline-block; color: #8ab4ff; text-decoration: none; font-size
 <div class="scard"><div class="k">📈 올해</div><div class="v" id="cYear">0원</div><div class="n" id="cYearNet">세후 0원</div></div>
 </div>
 
+<!-- 일별 기록 -->
+<div class="card">
+<div class="cal-head">
+  <div>
+    <div class="title daily-t">📅 일별 기록 달력</div>
+    <div class="muted">스마트폰에서는 날짜를 눌러 바로 확인·수정할 수 있습니다.</div>
+  </div>
+  <div class="cal-controls">
+    <button class="cal-nav" onclick="moveCalendarMonth(-1)" aria-label="이전 달">‹</button>
+    <select id="calendarMonth" onchange="renderDailyCalendar(this.value)"></select>
+    <button class="cal-nav" onclick="moveCalendarMonth(1)" aria-label="다음 달">›</button>
+  </div>
+</div>
+<div id="dailyCalendar" class="calendar"></div>
+<div class="selected-day-box">
+  <div class="selected-day-title" id="selectedDayTitle">날짜를 선택해 주세요</div>
+  <div class="muted" id="selectedDayNet">세후 금액이 여기에 표시됩니다.</div>
+  <div class="selected-day-actions">
+    <input id="selectedDayGross" type="text" inputmode="numeric" placeholder="세전 금액">
+    <button class="save" onclick="saveSelectedDay()">선택 날짜 저장</button>
+    <button class="del" onclick="deleteSelectedDay()">삭제</button>
+  </div>
+</div>
+<div class="addbox">
+<input id="manualDate" type="date">
+<input id="manualGross" type="text" inputmode="numeric" placeholder="세전 금액">
+<button class="save" onclick="manualAdd()">일별 기록 추가</button>
+</div>
+<details class="daily-list">
+  <summary>전체 일별 목록 펼치기</summary>
+  <table id="dailyTable"><thead><tr><th>날짜</th><th>세전</th><th>세후</th><th class="center">관리</th></tr></thead><tbody id="dailyBody"></tbody></table>
+</details>
+</div>
+
 <!-- CSV -->
 <div class="card">
 <div class="title">💾 데이터 백업</div>
@@ -95,16 +169,7 @@ a.back { display: inline-block; color: #8ab4ff; text-decoration: none; font-size
 <div class="muted" id="chartInfo" style="margin-top:6px"></div>
 </div>
 
-<!-- 일별 기록 -->
-<div class="card">
-<div class="title daily-t">📅 일별 기록</div>
-<table id="dailyTable"><thead><tr><th>날짜</th><th>세전</th><th>세후</th><th class="center">관리</th></tr></thead><tbody id="dailyBody"></tbody></table>
-<div class="addbox">
-<input id="manualDate" type="date">
-<input id="manualGross" type="text" inputmode="numeric" placeholder="세전 금액">
-<button class="save" onclick="manualAdd()">일별 기록 추가</button>
-</div>
-</div>
+
 
 <!-- 월별 기록 -->
 <div class="card">
@@ -154,6 +219,84 @@ function showNotice(msg,type){
   el.innerText=msg; el.className=(type==='error'?'error':'success'); el.style.display='block';
   if(noticeTimer) clearTimeout(noticeTimer);
   noticeTimer=setTimeout(function(){ el.style.display='none'; el.className=''; },3500);
+}
+
+
+/* === 달력형 일별 기록 === */
+var selectedDayKey = null;
+
+function monthShift(monthKey, delta){
+  var y=parseInt(monthKey.slice(0,4),10), m=parseInt(monthKey.slice(5),10)-1;
+  var d=new Date(y, m+delta, 1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function moveCalendarMonth(delta){
+  var sel=document.getElementById('calendarMonth');
+  if(!sel) return;
+  var next=monthShift(sel.value||nowParts().month, delta);
+  var exists=false;
+  for(var i=0;i<sel.options.length;i++) if(sel.options[i].value===next) exists=true;
+  if(!exists){
+    var opt=document.createElement('option'); opt.value=next; opt.text=next;
+    sel.appendChild(opt);
+    Array.prototype.slice.call(sel.options).sort(function(a,b){ return b.value.localeCompare(a.value); }).forEach(function(o){ sel.appendChild(o); });
+  }
+  sel.value=next;
+  renderDailyCalendar(next);
+}
+function updateSelectedDayBox(){
+  if(!selectedDayKey) return;
+  var hist=window._hist||{};
+  var g=toNum(hist[selectedDayKey]&&hist[selectedDayKey].gross);
+  var t=document.getElementById('selectedDayTitle');
+  var n=document.getElementById('selectedDayNet');
+  var inp=document.getElementById('selectedDayGross');
+  if(t) t.innerText=selectedDayKey+' 선택됨';
+  if(n) n.innerText='세전 '+won(g)+' · 세후 '+won(netOf(g));
+  if(inp && document.activeElement!==inp) inp.value=g?comma(g):'';
+}
+function selectCalendarDay(day){
+  selectedDayKey=day;
+  updateSelectedDayBox();
+  renderDailyCalendar(day.slice(0,7));
+}
+function saveSelectedDay(){
+  if(!selectedDayKey){ showNotice('먼저 달력에서 날짜를 선택해 주세요.','error'); return; }
+  var g=toNum(document.getElementById('selectedDayGross').value);
+  db.ref('history/'+selectedDayKey).set({ gross:g, net:netOf(g), updatedAt:new Date().toISOString() })
+    .then(function(){ showNotice(selectedDayKey+' 저장 완료','success'); });
+}
+function deleteSelectedDay(){
+  if(!selectedDayKey){ showNotice('먼저 달력에서 날짜를 선택해 주세요.','error'); return; }
+  if(!confirm(selectedDayKey+' 기록을 삭제할까요?')) return;
+  db.ref('history/'+selectedDayKey).remove().then(function(){
+    showNotice(selectedDayKey+' 삭제 완료','success');
+    document.getElementById('selectedDayGross').value='';
+    document.getElementById('selectedDayNet').innerText='세후 금액이 여기에 표시됩니다.';
+  });
+}
+function renderDailyCalendar(monthKey){
+  var cal=document.getElementById('dailyCalendar');
+  if(!cal) return;
+  var hist=window._hist||{};
+  monthKey=monthKey || (document.getElementById('calendarMonth')&&document.getElementById('calendarMonth').value) || nowParts().month;
+  var y=parseInt(monthKey.slice(0,4),10), mo=parseInt(monthKey.slice(5),10);
+  var first=new Date(y, mo-1, 1).getDay();
+  var ndays=new Date(y, mo, 0).getDate();
+  var today=nowParts().day;
+  var html='';
+  ['일','월','화','수','목','금','토'].forEach(function(w){ html+='<div class="cal-weekday">'+w+'</div>'; });
+  for(var e=0;e<first;e++) html+='<div class="cal-day empty"></div>';
+  for(var d=1; d<=ndays; d++){
+    var key=monthKey+'-'+String(d).padStart(2,'0');
+    var g=toNum(hist[key]&&hist[key].gross);
+    var cls='cal-day'+(g?' has-income':'')+(key===today?' today':'')+(key===selectedDayKey?' selected':'');
+    html+='<button type="button" class="'+cls+'" onclick="selectCalendarDay(\''+key+'\')">'
+      +'<span class="cal-num">'+d+'</span>'
+      +(g?'<span class="cal-gross">'+comma(g)+'원</span><span class="cal-net">세후 '+comma(netOf(g))+'원</span>':'<span class="cal-empty-note">-</span>')
+      +'</button>';
+  }
+  cal.innerHTML=html;
 }
 
 /* === 저장/삭제 === */
@@ -354,7 +497,7 @@ function render(data){
   });
   document.getElementById('yearBody').innerHTML=yb;
 
-  // 그래프 월 선택지: 데이터 있는 달 + 이번 달
+  // 그래프/달력 월 선택지: 데이터 있는 달 + 이번 달
   var chartSet={};
   Object.keys(monthMap).forEach(function(m){ chartSet[m]=true; });
   chartSet[cur.month]=true;
@@ -364,6 +507,21 @@ function render(data){
   selEl.innerHTML=chartMonths.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join('');
   selEl.value=(chartMonths.indexOf(prevSel)>-1)?prevSel:cur.month;
   renderChart(selEl.value);
+
+  var calSel=document.getElementById('calendarMonth');
+  if(calSel){
+    var prevCal=calSel.value;
+    calSel.innerHTML=chartMonths.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join('');
+    calSel.value=(chartMonths.indexOf(prevCal)>-1)?prevCal:cur.month;
+    if(!selectedDayKey || selectedDayKey.slice(0,7)!==calSel.value){
+      var cy=parseInt(calSel.value.slice(0,4),10), cm=parseInt(calSel.value.slice(5),10);
+      var maxDay=new Date(cy, cm, 0).getDate();
+      var pick=Math.min(parseInt(cur.day.slice(8),10), maxDay);
+      selectedDayKey=calSel.value+'-'+String(pick).padStart(2,'0');
+    }
+    updateSelectedDayBox();
+    renderDailyCalendar(calSel.value);
+  }
 }
 
 function setCard(idBase, g){
